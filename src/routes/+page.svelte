@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
 
   type Message = {
     id: number;
@@ -15,6 +15,14 @@
     content: string;
   };
 
+  type VoiceClip = {
+    id: number;
+    url: string;
+    createdAt: number;
+    transcript: string | null;
+    status: 'recorded' | 'transcribing' | 'ready';
+  };
+
   const API_ENDPOINT = '/api/chat';
 
   let messages: Message[] = [];
@@ -25,6 +33,10 @@
   let mediaRecorder: MediaRecorder | null = null;
   let audioChunks: Blob[] = [];
   let messagesEl: HTMLDivElement | null = null;
+  let clipsEl: HTMLDivElement | null = null;
+  let voiceClips: VoiceClip[] = [];
+  let nextClipId = 1;
+  let activeClipId: number | null = null;
 
   let synth: SpeechSynthesis | null = null;
   let ttsEnabled = true;
@@ -57,6 +69,11 @@
   const scrollToLatest = async () => {
     await tick();
     messagesEl?.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
+  };
+
+  const scrollClipsToLatest = async () => {
+    await tick();
+    clipsEl?.scrollTo({ top: clipsEl.scrollHeight, behavior: 'smooth' });
   };
 
   const selectPreferredVoice = () => {
@@ -101,7 +118,55 @@
     scrollToLatest();
   };
 
-  const handleResponse = async (res: Response, pendingAudioId?: number) => {
+  const addVoiceClip = (audioBlob: Blob) => {
+    const url = URL.createObjectURL(audioBlob);
+    const clip: VoiceClip = {
+      id: nextClipId++,
+      url,
+      createdAt: Date.now(),
+      transcript: null,
+      status: 'recorded'
+    };
+
+    voiceClips = [clip, ...voiceClips];
+    void scrollClipsToLatest();
+
+    return clip;
+  };
+
+  const updateVoiceClip = (clipId: number, patch: Partial<Omit<VoiceClip, 'id' | 'url'>>) => {
+    voiceClips = voiceClips.map((clip) =>
+      clip.id === clipId
+        ? {
+            ...clip,
+            ...patch
+          }
+        : clip
+    );
+  };
+
+  const playClip = (clipId: number) => {
+    const clip = voiceClips.find((item) => item.id === clipId);
+    if (!clip) return;
+
+    if (activeClipId === clipId) {
+      const currentAudio = document.getElementById(`clip-audio-${clipId}`) as HTMLAudioElement | null;
+      if (currentAudio) {
+        currentAudio.pause();
+        currentAudio.currentTime = 0;
+      }
+      activeClipId = null;
+      return;
+    }
+
+    activeClipId = clipId;
+    const currentAudio = document.getElementById(`clip-audio-${clipId}`) as HTMLAudioElement | null;
+    currentAudio?.play().catch(() => {
+      activeClipId = null;
+    });
+  };
+
+  const handleResponse = async (res: Response, pendingMessageId?: number, clipId?: number) => {
     if (!res.ok) {
       pushAssistantError('Error communicating with backend.');
       return;
@@ -113,9 +178,9 @@
     const transcriptText = typeof data?.transcript === 'string' ? data.transcript.trim() : '';
     const assistantMessage = createMessage('assistant', replyText, { lesson: lessonText });
 
-    if (pendingAudioId) {
+    if (pendingMessageId) {
       messages = messages.map((message) =>
-        message.id === pendingAudioId
+        message.id === pendingMessageId
           ? {
               ...message,
               text: transcriptText || 'Voice note sent',
@@ -124,6 +189,13 @@
             }
           : message
       );
+
+      if (clipId) {
+        updateVoiceClip(clipId, {
+          transcript: transcriptText || null,
+          status: 'ready'
+        });
+      }
     }
 
     messages = [...messages, assistantMessage];
@@ -134,7 +206,11 @@
     speak(replyText);
   };
 
-  const sendPayload = async (payload: { message?: string; audio?: string; messages: ChatHistoryMessage[] }, pendingAudioId?: number) => {
+  const sendPayload = async (
+    payload: { message?: string; audio?: string; messages: ChatHistoryMessage[] },
+    pendingMessageId?: number,
+    clipId?: number
+  ) => {
     try {
       const res = await fetch(API_ENDPOINT, {
         method: 'POST',
@@ -142,7 +218,7 @@
         body: JSON.stringify(payload)
       });
 
-      await handleResponse(res, pendingAudioId);
+      await handleResponse(res, pendingMessageId, clipId);
     } catch (e) {
       console.error(e);
       pushAssistantError('Network error.');
@@ -176,22 +252,24 @@
 
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const clip = addVoiceClip(audioBlob);
+        updateVoiceClip(clip.id, { status: 'transcribing' });
+
         const reader = new FileReader();
+        const pendingAudioMessage = createMessage('user', 'Transcribing voice note...', {
+          includeInContext: false,
+          pending: true
+        });
+        messages = [...messages, pendingAudioMessage];
+        isThinking = true;
+        await scrollToLatest();
 
         reader.readAsDataURL(audioBlob);
         reader.onloadend = async () => {
           const base64data = reader.result as string;
           const base64Audio = base64data.split(',')[1];
 
-          const pendingAudioMessage = createMessage('user', 'Transcribing voice note...', {
-            includeInContext: false,
-            pending: true
-          });
-          messages = [...messages, pendingAudioMessage];
-          isThinking = true;
-          await scrollToLatest();
-
-          await sendPayload({ audio: base64Audio, messages: toChatHistory() }, pendingAudioMessage.id);
+          await sendPayload({ audio: base64Audio, messages: toChatHistory() }, pendingAudioMessage.id, clip.id);
         };
 
         stream.getTracks().forEach((track) => track.stop());
@@ -204,6 +282,10 @@
       alert('Could not access microphone.');
     }
   };
+
+  onDestroy(() => {
+    voiceClips.forEach((clip) => URL.revokeObjectURL(clip.url));
+  });
 
   const stopRecording = () => {
     if (mediaRecorder && isRecording) {
@@ -307,6 +389,66 @@
           </article>
         {/if}
       </div>
+
+      <section class="clips-panel">
+        <div class="clips-header">
+          <div>
+            <p class="eyebrow clips-eyebrow">Voice clips</p>
+            <h2>Recorded audio</h2>
+          </div>
+          <span>{voiceClips.length} clips</span>
+        </div>
+
+        <div class="clips-list" bind:this={clipsEl}>
+          {#if voiceClips.length === 0}
+            <div class="clips-empty">
+              Your recordings will appear here after you stop speaking.
+            </div>
+          {/if}
+
+          {#each voiceClips as clip}
+            <article class="clip-item">
+              <button
+                class="clip-play"
+                type="button"
+                on:click={() => playClip(clip.id)}
+                aria-label={activeClipId === clip.id ? 'Pause recording' : 'Play recording'}
+              >
+                {activeClipId === clip.id ? 'Pause' : 'Play'}
+              </button>
+
+              <audio
+                id={`clip-audio-${clip.id}`}
+                src={clip.url}
+                preload="none"
+                on:play={() => (activeClipId = clip.id)}
+                on:pause={() => {
+                  if (activeClipId === clip.id) activeClipId = null;
+                }}
+                on:ended={() => {
+                  if (activeClipId === clip.id) activeClipId = null;
+                }}
+              ></audio>
+
+              <div class="clip-meta">
+                <div class="clip-title">
+                  <strong>Recording {clip.id}</strong>
+                  <span>{new Date(clip.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+                <p>
+                  {#if clip.status === 'transcribing'}
+                    Transcribing...
+                  {:else if clip.transcript}
+                    {clip.transcript}
+                  {:else}
+                    Tap play to listen back.
+                  {/if}
+                </p>
+              </div>
+            </article>
+          {/each}
+        </div>
+      </section>
 
       <form class="composer" on:submit|preventDefault={sendText}>
         <label class="composer-field">
