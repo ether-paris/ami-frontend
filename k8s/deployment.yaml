@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: ether
+  name: ami-frontend
+  labels:
+    app: ami-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ami-frontend
+  template:
+    metadata:
+      labels:
+        app: ami-frontend
+    spec:
+      nodeSelector:
+        role: worker
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: frontend
+          image: ghcr.io/ether-paris/ami-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
