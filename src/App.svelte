@@ -49,6 +49,8 @@
     isThinking = false;
   };
 
+  const API_ENDPOINT = import.meta.env.PROD ? 'https://api.ami.ether.paris/api/chat' : '/api/chat';
+
   const sendText = async () => {
     if (!inputText.trim()) return;
     const text = inputText.trim();
@@ -57,7 +59,7 @@
     isThinking = true;
 
     try {
-      const res = await fetch('/api/chat', {
+      const res = await fetch(API_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text })
@@ -95,7 +97,7 @@
           isThinking = true;
 
           try {
-            const res = await fetch('/api/chat', {
+            const res = await fetch(API_ENDPOINT, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ audio: base64Audio })
