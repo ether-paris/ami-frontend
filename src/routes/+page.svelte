@@ -49,7 +49,13 @@
     isThinking = false;
   };
 
-  const API_ENDPOINT = import.meta.env.PROD ? 'https://api-ami.ether.paris/api/chat' : '/api/chat';
+  // Choose the backend URL by commenting/uncommenting the desired line.
+  // For local development against a backend running on your machine (e.g., on port 8000):
+  // const API_ENDPOINT = 'http://localhost:8000/api/chat';
+  // For the deployed backend (via the internal proxy in production):
+  const API_ENDPOINT = '/api/chat';
+  // If you want to bypass the proxy and call the external service directly, uncomment the line below:
+  // const API_ENDPOINT = 'https://api-ami.ether.paris/api/chat';
 
   const sendText = async () => {
     if (!inputText.trim()) return;

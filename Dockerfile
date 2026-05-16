@@ -1,22 +1,17 @@
+# builder
 FROM node:20-slim AS builder
-
 WORKDIR /app
-
-# Copy package files and install dependencies
 COPY package*.json ./
-RUN npm install
-
-# Copy source files and build the Vite SPA
+RUN npm ci
 COPY . .
-RUN npm run build
-
-# Use Nginx to serve the static files
-FROM nginx:alpine
-
-# Copy built assets to Nginx default public directory
-COPY --from=builder /app/build /usr/share/nginx/html
-
-# Expose port 80
+RUN npm run build   # SvelteKit builds to /app/build
+# runtime
+FROM node:20-slim AS runtime
+WORKDIR /app
+COPY --from=builder /app/package*.json ./
+RUN npm install --omit=dev   # only production deps
+COPY --from=builder /app/build ./build
+ENV PORT=80
+ENV HOST=0.0.0.0
 EXPOSE 80
-
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["node", "build/index.js"]
