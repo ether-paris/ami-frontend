@@ -49,7 +49,7 @@
     isThinking = false;
   };
 
-  const API_ENDPOINT = import.meta.env.PROD ? 'https://api.ami.ether.paris/api/chat' : '/api/chat';
+  const API_ENDPOINT = import.meta.env.PROD ? 'https://api-ami.ether.paris/api/chat' : '/api/chat';
 
   const sendText = async () => {
     if (!inputText.trim()) return;
