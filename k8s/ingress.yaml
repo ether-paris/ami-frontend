@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  namespace: ether
+  name: ami-frontend-ingress
+spec:
+  rules:
+  - host: ami.ether.paris
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: ami-frontend
+            port:
+              number: 80
