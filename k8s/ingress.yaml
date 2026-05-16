@@ -4,6 +4,7 @@ metadata:
   namespace: ether
   name: ami-frontend-ingress
 spec:
+  ingressClassName: nginx
   rules:
   - host: ami.ether.paris
     http:
