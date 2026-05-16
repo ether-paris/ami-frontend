@@ -14,7 +14,7 @@ RUN npm run build
 FROM nginx:alpine
 
 # Copy built assets to Nginx default public directory
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/build /usr/share/nginx/html
 
 # Expose port 80
 EXPOSE 80
