@@ -8,6 +8,8 @@
     lesson?: string;
     includeInContext?: boolean;
     pending?: boolean;
+    audioUrl?: string;
+    audioStatus?: 'idle' | 'generating' | 'ready' | 'blocked' | 'error';
   };
 
   type ChatHistoryMessage = {
@@ -38,10 +40,15 @@
   let nextClipId = 1;
   let activeClipId: number | null = null;
 
-  let synth: SpeechSynthesis | null = null;
   let ttsEnabled = true;
-  let ttsReady = false;
-  let activeVoiceName = 'System default';
+  let ttsReady = true;
+  let activeVoiceName = 'Kokoro (k8s)';
+  let ttsError: string | null = null;
+  let currentSpeechAudio: HTMLAudioElement | null = null;
+  let currentSpeechUrl: string | null = null;
+
+  const KOKORO_VOICE = 'ff_siwis';
+  const KOKORO_LANGUAGE = 'fr-fr';
 
   const assistantIntro =
     'Your French tutor listens, replies out loud, and keeps corrections separate so the conversation stays natural.';
@@ -76,40 +83,82 @@
     clipsEl?.scrollTo({ top: clipsEl.scrollHeight, behavior: 'smooth' });
   };
 
-  const selectPreferredVoice = () => {
-    if (!synth) return null;
-
-    const voices = synth.getVoices();
-    if (voices.length === 0) return null;
-
-    const frenchVoice =
-      voices.find((voice) => voice.default && voice.lang.toLowerCase().startsWith('fr')) ||
-      voices.find((voice) => /siri/i.test(voice.name) && voice.lang.toLowerCase().startsWith('fr')) ||
-      voices.find((voice) => voice.lang.toLowerCase().startsWith('fr')) ||
-      voices.find((voice) => voice.default) ||
-      null;
-
-    activeVoiceName = frenchVoice?.name || 'System default';
-    ttsReady = true;
-
-    return frenchVoice;
+  const stopSpeech = () => {
+    currentSpeechAudio?.pause();
+    currentSpeechAudio = null;
+    currentSpeechUrl = null;
   };
 
-  const speak = (text: string) => {
-    if (!ttsEnabled || !synth || !text.trim()) return;
+  const updateMessageAudio = (messageId: number, patch: Partial<Pick<Message, 'audioUrl' | 'audioStatus'>>) => {
+    messages = messages.map((message) => (message.id === messageId ? { ...message, ...patch } : message));
+  };
 
-    const utterance = new SpeechSynthesisUtterance(text.trim());
-    const preferredVoice = selectPreferredVoice();
+  const generateSpeechUrl = async (text: string) => {
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        text,
+        voice: KOKORO_VOICE,
+        language: KOKORO_LANGUAGE
+      })
+    });
 
-    if (preferredVoice) {
-      utterance.voice = preferredVoice;
-      utterance.lang = preferredVoice.lang;
-    } else {
-      utterance.lang = 'fr-FR';
+    if (!res.ok) {
+      throw new Error('TTS generation failed');
     }
 
-    synth.cancel();
-    synth.speak(utterance);
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  };
+
+  const playSpeechUrl = async (url: string) => {
+    stopSpeech();
+    currentSpeechUrl = url;
+    currentSpeechAudio = new Audio(url);
+    await currentSpeechAudio.play();
+  };
+
+  const speakMessage = async (messageId: number, text: string, autoplay = false) => {
+    if (!ttsEnabled || !text.trim()) return;
+
+    const existingMessage = messages.find((message) => message.id === messageId);
+
+    if (existingMessage?.audioUrl) {
+      try {
+        await playSpeechUrl(existingMessage.audioUrl);
+        updateMessageAudio(messageId, { audioStatus: 'ready' });
+      } catch (err) {
+        console.error('Kokoro playback failed', err);
+        updateMessageAudio(messageId, { audioStatus: 'blocked' });
+      }
+      return;
+    }
+
+    try {
+      updateMessageAudio(messageId, { audioStatus: 'generating' });
+      const url = await generateSpeechUrl(text);
+      updateMessageAudio(messageId, { audioUrl: url, audioStatus: 'ready' });
+
+      if (!autoplay) {
+        await playSpeechUrl(url);
+        return;
+      }
+
+      try {
+        await playSpeechUrl(url);
+      } catch (err) {
+        console.warn('Browser blocked automatic Kokoro playback', err);
+        updateMessageAudio(messageId, { audioUrl: url, audioStatus: 'blocked' });
+      }
+    } catch (err) {
+      console.error('Kokoro TTS failed', err);
+      ttsError = 'Voice needs a tap';
+      ttsReady = false;
+      updateMessageAudio(messageId, { audioStatus: 'error' });
+    }
   };
 
   const pushAssistantError = (text: string) => {
@@ -168,7 +217,18 @@
 
   const handleResponse = async (res: Response, pendingMessageId?: number, clipId?: number) => {
     if (!res.ok) {
-      pushAssistantError('Error communicating with backend.');
+      const errorText = await res.text().catch(() => '');
+      const message = errorText ? `Error communicating with backend: ${errorText}` : 'Error communicating with backend.';
+
+      if (pendingMessageId) {
+        messages = messages.filter((message) => message.id !== pendingMessageId);
+      }
+
+      if (clipId) {
+        updateVoiceClip(clipId, { status: 'recorded' });
+      }
+
+      pushAssistantError(message);
       return;
     }
 
@@ -203,11 +263,11 @@
     await scrollToLatest();
 
     // Read only the conversational answer, never the teaching note.
-    speak(replyText);
+    void speakMessage(assistantMessage.id, replyText, true);
   };
 
   const sendPayload = async (
-    payload: { message?: string; audio?: string; messages: ChatHistoryMessage[] },
+    payload: { message?: string; audio?: string; audioMimeType?: string; messages: ChatHistoryMessage[] },
     pendingMessageId?: number,
     clipId?: number
   ) => {
@@ -241,7 +301,13 @@
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorder = new MediaRecorder(stream);
+      const mimeType =
+        MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+          ? 'audio/webm;codecs=opus'
+          : MediaRecorder.isTypeSupported('audio/mp4')
+            ? 'audio/mp4'
+            : '';
+      mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       audioChunks = [];
 
       mediaRecorder.ondataavailable = (event) => {
@@ -251,7 +317,8 @@
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const audioMimeType = mediaRecorder?.mimeType || mimeType || audioChunks[0]?.type || 'audio/webm';
+        const audioBlob = new Blob(audioChunks, { type: audioMimeType });
         const clip = addVoiceClip(audioBlob);
         updateVoiceClip(clip.id, { status: 'transcribing' });
 
@@ -269,7 +336,11 @@
           const base64data = reader.result as string;
           const base64Audio = base64data.split(',')[1];
 
-          await sendPayload({ audio: base64Audio, messages: toChatHistory() }, pendingAudioMessage.id, clip.id);
+          await sendPayload(
+            { audio: base64Audio, audioMimeType, messages: toChatHistory() },
+            pendingAudioMessage.id,
+            clip.id
+          );
         };
 
         stream.getTracks().forEach((track) => track.stop());
@@ -285,6 +356,10 @@
 
   onDestroy(() => {
     voiceClips.forEach((clip) => URL.revokeObjectURL(clip.url));
+    messages.forEach((message) => {
+      if (message.audioUrl) URL.revokeObjectURL(message.audioUrl);
+    });
+    stopSpeech();
   });
 
   const stopRecording = () => {
@@ -295,16 +370,7 @@
   };
 
   onMount(() => {
-    synth = window.speechSynthesis;
-    const loadVoices = () => {
-      selectPreferredVoice();
-    };
-
-    loadVoices();
-
-    if (synth?.onvoiceschanged !== undefined) {
-      synth.onvoiceschanged = loadVoices;
-    }
+    // TTS is now handled by the backend server
   });
 </script>
 
@@ -331,9 +397,16 @@
         </div>
         <div class="assistant-meta">
           <strong>AI Tutor</strong>
-          <span>{ttsReady ? activeVoiceName : 'Preparing voice'}</span>
+          <span>{ttsError ?? (ttsReady ? activeVoiceName : 'Preparing Kokoro')}</span>
         </div>
-        <button class:muted={!ttsEnabled} class="voice-toggle" on:click={() => (ttsEnabled = !ttsEnabled)}>
+        <button
+          class:muted={!ttsEnabled}
+          class="voice-toggle"
+          on:click={() => {
+            ttsEnabled = !ttsEnabled;
+            if (!ttsEnabled) stopSpeech();
+          }}
+        >
           {ttsEnabled ? 'Voice on' : 'Voice off'}
         </button>
       </div>
@@ -360,6 +433,22 @@
             <div class="message-stack">
               <div class="bubble {msg.role}">
                 <p>{msg.text}</p>
+                {#if msg.role === 'assistant' && msg.text.trim()}
+                  <button
+                    class="speak-reply"
+                    type="button"
+                    disabled={!ttsEnabled || msg.audioStatus === 'generating'}
+                    on:click={() => void speakMessage(msg.id, msg.text)}
+                  >
+                    {#if msg.audioStatus === 'generating'}
+                      Preparing voice
+                    {:else if msg.audioStatus === 'blocked'}
+                      Tap to play
+                    {:else}
+                      Play voice
+                    {/if}
+                  </button>
+                {/if}
               </div>
 
               {#if msg.lesson}
