@@ -379,203 +379,178 @@
   />
 </svelte:head>
 
-<main class="flex h-screen w-full bg-slate-50 overflow-hidden font-sans text-slate-900">
-  <!-- Desktop Sidebar -->
-  <aside class="hidden md:flex w-80 flex-col bg-slate-950 text-slate-50 border-r border-slate-800 shadow-2xl z-20">
-    <div class="p-6 flex flex-col gap-2 border-b border-slate-800/80">
-      <div class="flex items-center gap-3">
-         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-lg shadow-inner">A</div>
-         <h1 class="text-xl font-bold tracking-tight text-white">Ami Tutor</h1>
+<main class="flex flex-col h-screen w-full bg-[#efeae2] font-sans text-slate-900 overflow-hidden relative">
+  <!-- Top App Bar -->
+  <header class="h-16 bg-[#f0f2f5] px-4 flex items-center justify-between border-b border-slate-200/60 z-20 shrink-0">
+    <div class="flex items-center gap-3 cursor-default">
+      <div class="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-semibold text-lg overflow-hidden relative">
+        <!-- Abstract avatar for Ami -->
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       </div>
-      <p class="text-slate-400 text-sm mt-3 leading-relaxed">Your voice-first French tutor that listens and replies naturally.</p>
-    </div>
-    
-    <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-6" bind:this={clipsEl}>
-      <!-- Voice Clips Section -->
-      <div>
-        <div class="flex items-center justify-between mb-3 px-2">
-          <h2 class="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Recorded Clips</h2>
-          <span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">{voiceClips.length}</span>
-        </div>
-        
-        <div class="flex flex-col gap-1">
-          {#if voiceClips.length === 0}
-            <div class="text-slate-500 text-sm px-2 py-4 italic text-center border border-dashed border-slate-800 rounded-xl mt-2">No recordings yet.</div>
-          {/if}
-          {#each voiceClips as clip}
-            <button 
-              class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-800/50 transition-colors text-left group {activeClipId === clip.id ? 'bg-slate-800/80 ring-1 ring-slate-700' : ''}"
-              on:click={() => playClip(clip.id)}
-            >
-              <div class="w-8 h-8 rounded-full bg-slate-800 group-hover:bg-indigo-600 group-hover:text-white flex items-center justify-center flex-shrink-0 text-slate-400 transition-colors {activeClipId === clip.id ? 'bg-indigo-600 text-white' : ''}">
-                {#if activeClipId === clip.id}
-                  <!-- Pause icon -->
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
-                {:else}
-                  <!-- Play icon -->
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                {/if}
-              </div>
-              <div class="flex-1 min-w-0">
-                <div class="text-sm font-medium text-slate-200 truncate flex items-center gap-2">
-                  Clip {clip.id}
-                  <span class="text-[10px] text-slate-500 font-normal">{new Date(clip.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                </div>
-                <div class="text-[13px] text-slate-400 truncate mt-0.5">
-                   {#if clip.status === 'transcribing'}
-                    <span class="text-indigo-400 animate-pulse">Transcribing...</span>
-                  {:else if clip.transcript}
-                    {clip.transcript}
-                  {:else}
-                    Tap to play
-                  {/if}
-                </div>
-              </div>
-            </button>
-          {/each}
-        </div>
+      <div class="flex flex-col">
+        <h1 class="text-[16px] font-semibold text-slate-800 leading-tight">Ami Tutor</h1>
+        <span class="text-[13px] text-emerald-600 font-medium flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          {ttsReady ? 'Online' : 'Connecting...'}
+        </span>
       </div>
     </div>
-    
-    <div class="p-4 border-t border-slate-800/80 bg-slate-900/30">
-      <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-900 border border-slate-800 shadow-inner">
-        <div class="flex flex-col gap-0.5">
-          <span class="text-sm font-medium text-slate-200">Voice Output</span>
-          <span class="text-[11px] text-slate-400 flex items-center gap-1.5">
-            <span class="w-1.5 h-1.5 rounded-full {ttsReady ? 'bg-emerald-500' : 'bg-amber-500'}"></span>
-            {ttsError ?? (ttsReady ? activeVoiceName : 'Preparing...')}
-          </span>
-        </div>
-        <button 
-          class="w-11 h-6 rounded-full transition-colors relative shadow-inner focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-900 {ttsEnabled ? 'bg-indigo-500' : 'bg-slate-700'}"
-          on:click={() => { ttsEnabled = !ttsEnabled; if (!ttsEnabled) stopSpeech(); }}
-          aria-label="Toggle voice output"
-        >
-          <span class="absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform shadow-sm {ttsEnabled ? 'translate-x-5' : 'translate-x-0'}"></span>
-        </button>
-      </div>
+
+    <!-- Right Controls -->
+    <div class="flex items-center gap-2">
+      <!-- Voice Toggle -->
+      <button 
+        class="flex items-center justify-center w-10 h-10 rounded-full transition-colors {ttsEnabled ? 'text-slate-600 hover:bg-slate-200/70' : 'text-slate-400 bg-slate-200/50'}"
+        on:click={() => { ttsEnabled = !ttsEnabled; if (!ttsEnabled) stopSpeech(); }}
+        title={ttsEnabled ? "Mute Voice" : "Enable Voice"}
+      >
+        {#if ttsEnabled}
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
+        {:else}
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
+        {/if}
+      </button>
     </div>
-  </aside>
+  </header>
 
   <!-- Main Chat Area -->
-  <main class="flex-1 flex flex-col bg-white relative shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.1)] z-10">
-    <!-- Mobile Header -->
-    <header class="md:hidden flex items-center justify-between p-4 border-b border-slate-100 bg-white/80 backdrop-blur-md sticky top-0 z-10">
-      <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold shadow-sm">A</div>
-        <h1 class="text-lg font-bold text-slate-900">Ami Tutor</h1>
-      </div>
-      <button 
-         class="text-xs font-semibold px-3.5 py-1.5 rounded-full transition-colors {ttsEnabled ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}"
-         on:click={() => { ttsEnabled = !ttsEnabled; if (!ttsEnabled) stopSpeech(); }}
-      >
-        {ttsEnabled ? 'Voice On' : 'Voice Off'}
-      </button>
-    </header>
-
-    <!-- Messages -->
-    <div class="flex-1 overflow-y-auto" bind:this={messagesEl}>
-      <div class="max-w-3xl mx-auto w-full p-4 sm:p-6 md:p-8 flex flex-col gap-8 pb-40">
-        {#if messages.length === 0}
-          <div class="flex flex-col items-center justify-center text-center mt-12 md:mt-24 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div class="w-20 h-20 rounded-3xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-4xl shadow-xl shadow-indigo-500/20 ring-4 ring-indigo-50">A</div>
-            <h2 class="text-3xl font-bold text-slate-900 tracking-tight">Bonjour!</h2>
-            <p class="text-slate-500 max-w-sm text-[15px] leading-relaxed">I'm Ami, your AI French tutor. Send a message or record a voice clip to get started.</p>
+  <div class="flex-1 overflow-y-auto px-2 sm:px-4 md:px-10 py-6" bind:this={messagesEl} style="background-image: radial-gradient(#d5d0c8 1px, transparent 1px); background-size: 24px 24px;">
+    <div class="max-w-4xl mx-auto flex flex-col gap-3 pb-4">
+      
+      <!-- Welcome Message -->
+      {#if messages.length === 0}
+        <div class="flex justify-center mb-6">
+          <div class="bg-[#ffeeba] text-slate-800 text-[13px] px-4 py-2 rounded-lg shadow-sm text-center max-w-sm">
+            Bonjour ! I am Ami, your French tutor. Messages are end-to-end simulated. 
+            Send a message or record a voice note to start.
           </div>
-        {/if}
+        </div>
+      {/if}
 
-        {#each messages as msg (msg.id)}
-          <div class="flex gap-4 group {msg.role === 'user' ? 'flex-row-reverse' : ''}">
-            <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-auto mb-1 shadow-sm {msg.role === 'user' ? 'bg-slate-100 text-slate-500' : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'}">
+      <!-- Messages Loop -->
+      {#each messages as msg (msg.id)}
+        <div class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full">
+          <div class="flex flex-col gap-1 max-w-[85%] md:max-w-[70%]">
+            
+            <!-- Message Bubble -->
+            <div class="relative px-3 py-2 sm:px-4 sm:py-2.5 text-[15px] shadow-[0_1px_1px_rgba(0,0,0,0.1)] 
+              {msg.role === 'user' 
+                ? 'bg-[#d9fdd3] text-slate-900 rounded-lg rounded-tr-none' 
+                : 'bg-white text-slate-900 rounded-lg rounded-tl-none'
+              }"
+            >
+              <!-- Tail Triangles -->
               {#if msg.role === 'user'}
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                <svg class="absolute top-0 -right-2 text-[#d9fdd3]" width="8" height="13" viewBox="0 0 8 13" fill="currentColor">
+                  <path d="M0 0h8L0 13V0z"/>
+                </svg>
               {:else}
-                <span class="font-bold text-sm">A</span>
+                <svg class="absolute top-0 -left-2 text-white" width="8" height="13" viewBox="0 0 8 13" fill="currentColor">
+                  <path d="M8 0H0l8 13V0z"/>
+                </svg>
               {/if}
-            </div>
 
-            <div class="flex flex-col gap-2 max-w-[85%] md:max-w-[75%] {msg.role === 'user' ? 'items-end' : 'items-start'}">
-              <div class="px-5 py-3.5 text-[15px] shadow-sm {msg.role === 'user' ? 'bg-slate-900 text-white rounded-3xl rounded-br-sm' : 'bg-white border border-slate-200 text-slate-800 rounded-3xl rounded-bl-sm'}">
-                <p class="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
-              </div>
-
+              <p class="whitespace-pre-wrap leading-snug">{msg.text}</p>
+              
+              <!-- Voice Button for Assistant -->
               {#if msg.role === 'assistant' && msg.text.trim()}
-                <div class="flex items-center gap-2 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div class="mt-1 -mb-1 flex justify-end">
                   <button
-                    class="text-xs font-medium flex items-center gap-1.5 text-slate-400 hover:text-indigo-600 transition-colors disabled:opacity-50"
+                    class="text-[11px] font-medium flex items-center gap-1 transition-colors disabled:opacity-50
+                      {msg.audioStatus === 'generating' ? 'text-emerald-600' : 'text-slate-400 hover:text-emerald-600'}"
                     disabled={!ttsEnabled || msg.audioStatus === 'generating'}
                     on:click={() => void speakMessage(msg.id, msg.text)}
                   >
                     {#if msg.audioStatus === 'generating'}
-                      <svg class="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
-                      Generating...
+                      <svg class="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+                      Loading voice
                     {:else if msg.audioStatus === 'blocked'}
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                      Tap to play
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                      Play
                     {:else}
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
-                      Read aloud
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+                      Listen
                     {/if}
                   </button>
                 </div>
               {/if}
+            </div>
 
-              {#if msg.lesson}
-                <div class="mt-1 p-5 rounded-2xl bg-indigo-50/80 border border-indigo-100/80 text-indigo-950 w-full shadow-sm">
-                  <div class="flex items-center gap-2 mb-3">
-                    <div class="p-1.5 rounded-md bg-indigo-100 text-indigo-600">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
-                    </div>
-                    <span class="text-xs font-bold tracking-widest uppercase text-indigo-800">Petite leçon</span>
-                  </div>
-                  <p class="whitespace-pre-wrap text-[14px] leading-relaxed text-indigo-900/90 font-medium">{msg.lesson}</p>
+            <!-- Teaching Note (Separate Card) -->
+            {#if msg.lesson}
+              <div class="mt-1 bg-[#f0f2f5] border border-slate-200/60 rounded-lg p-3 shadow-sm text-slate-700 self-start w-full">
+                <div class="flex items-center gap-1.5 mb-1.5">
+                  <svg class="text-emerald-600" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                  <span class="text-[12px] font-bold uppercase tracking-wider text-slate-500">Petite leçon</span>
                 </div>
-              {/if}
-            </div>
-          </div>
-        {/each}
-
-        {#if isThinking}
-          <div class="flex gap-4">
-            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center flex-shrink-0 mt-auto mb-1 shadow-sm">
-              <span class="font-bold text-sm">A</span>
-            </div>
-            <div class="px-5 py-4 bg-white border border-slate-200 rounded-3xl rounded-bl-sm flex items-center gap-1.5 shadow-sm h-[52px]">
-              <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce"></span>
-              <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style="animation-delay: 0.15s"></span>
-              <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style="animation-delay: 0.3s"></span>
-            </div>
-          </div>
-        {/if}
-      </div>
-    </div>
-
-    <!-- Input Area -->
-    <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-white/0 pt-10 pb-6 px-4 sm:px-6 md:px-8">
-      <div class="max-w-3xl mx-auto">
-        <form 
-          class="relative flex items-end gap-2 bg-white border border-slate-300 rounded-3xl p-2 shadow-[0_8px_30px_rgb(0,0,0,0.04)] focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all"
-          on:submit|preventDefault={sendText}
-        >
-          <button 
-            type="button"
-            class="p-3 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-2xl transition-colors mb-0.5 {isRecording ? 'text-red-500 bg-red-50 hover:bg-red-100 hover:text-red-600 animate-pulse' : ''}"
-            on:click={isRecording ? stopRecording : startRecording}
-            disabled={isThinking}
-            title={isRecording ? "Stop recording" : "Record voice"}
-          >
-            {#if isRecording}
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
-            {:else}
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+                <p class="whitespace-pre-wrap text-[13.5px] leading-relaxed">{msg.lesson}</p>
+              </div>
             {/if}
-          </button>
-          
+
+          </div>
+        </div>
+      {/each}
+
+      <!-- Thinking Indicator -->
+      {#if isThinking}
+        <div class="flex justify-start w-full mt-1">
+          <div class="relative px-4 py-3 bg-white text-slate-900 rounded-lg rounded-tl-none shadow-sm flex items-center gap-1">
+            <svg class="absolute top-0 -left-2 text-white" width="8" height="13" viewBox="0 0 8 13" fill="currentColor">
+              <path d="M8 0H0l8 13V0z"/>
+            </svg>
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce"></span>
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style="animation-delay: 0.15s"></span>
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style="animation-delay: 0.3s"></span>
+          </div>
+        </div>
+      {/if}
+    </div>
+  </div>
+
+  <!-- Clips/History Drawer (Sliding up above input when there are clips) -->
+  {#if voiceClips.length > 0}
+    <div class="bg-[#f0f2f5] border-t border-slate-200/80 px-4 py-2 shrink-0 flex items-center gap-3 overflow-x-auto" bind:this={clipsEl}>
+      <span class="text-xs font-semibold text-slate-500 uppercase tracking-widest shrink-0">Clips</span>
+      {#each voiceClips as clip}
+        <button 
+          class="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-full shadow-sm shrink-0 hover:bg-slate-50 transition-colors {activeClipId === clip.id ? 'ring-2 ring-emerald-500/50' : ''}"
+          on:click={() => playClip(clip.id)}
+        >
+          <div class="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-emerald-600">
+            {#if activeClipId === clip.id}
+               <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+            {:else}
+               <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            {/if}
+          </div>
+          <span class="text-[12px] font-medium text-slate-600 max-w-[100px] truncate">
+            {#if clip.status === 'transcribing'}
+              Translating...
+            {:else if clip.transcript}
+              {clip.transcript}
+            {:else}
+              Audio
+            {/if}
+          </span>
+        </button>
+      {/each}
+    </div>
+  {/if}
+
+  <!-- Bottom Input Bar -->
+  <footer class="bg-[#f0f2f5] px-2 sm:px-4 py-3 border-t border-slate-200/60 shrink-0">
+    <div class="max-w-4xl mx-auto">
+      <form 
+        class="flex items-end gap-2 relative"
+        on:submit|preventDefault={sendText}
+      >
+        <!-- Text Input -->
+        <div class="flex-1 bg-white rounded-2xl sm:rounded-full border border-slate-300 shadow-sm flex items-end relative overflow-hidden transition-all focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500">
           <textarea
-            class="flex-1 max-h-32 min-h-[48px] py-3.5 px-2 bg-transparent border-none resize-none focus:outline-none focus:ring-0 text-[15px] placeholder:text-slate-400 disabled:opacity-50 font-medium"
+            class="w-full max-h-32 min-h-[44px] py-3 pl-4 pr-12 bg-transparent border-none resize-none focus:outline-none focus:ring-0 text-[15px] placeholder:text-slate-400 disabled:opacity-50"
             bind:value={inputText}
-            placeholder="Message Ami in French..."
-            disabled={isThinking}
+            placeholder="Type a message"
+            disabled={isThinking || isRecording}
             rows="1"
             on:keydown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -585,18 +560,37 @@
             }}
           ></textarea>
 
-          <button 
-            type="submit"
-            class="p-3 m-0.5 rounded-2xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:bg-slate-100 disabled:text-slate-400 transition-colors mb-0.5 shadow-sm"
-            disabled={isRecording || isThinking || !inputText.trim()}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-          </button>
-        </form>
-        <div class="text-center mt-3">
-          <span class="text-[11px] font-medium text-slate-400">Ami can make mistakes. Consider verifying important information.</span>
+          <!-- Submit Button (Inside input on right) -->
+          {#if inputText.trim()}
+            <button 
+              type="submit"
+              class="absolute right-1 bottom-1 p-2 rounded-full text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-50"
+              disabled={isThinking}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+            </button>
+          {/if}
         </div>
-      </div>
+
+        <!-- Voice Record Button -->
+        {#if !inputText.trim()}
+          <button 
+            type="button"
+            class="flex-shrink-0 w-[44px] h-[44px] rounded-full flex items-center justify-center transition-all shadow-sm
+              {isRecording 
+                ? 'bg-red-500 text-white animate-pulse' 
+                : 'bg-emerald-600 text-white hover:bg-emerald-700'}"
+            on:click={isRecording ? stopRecording : startRecording}
+            disabled={isThinking}
+          >
+            {#if isRecording}
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+            {:else}
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+            {/if}
+          </button>
+        {/if}
+      </form>
     </div>
-  </main>
+  </footer>
 </main>
