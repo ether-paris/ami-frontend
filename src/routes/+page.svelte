@@ -382,26 +382,25 @@
   />
 </svelte:head>
 
-<main class="page-shell">
-  <section class="chat-frame">
-    <header class="hero">
-      <div class="hero-copy">
-        <p class="eyebrow">Voice-first French practice</p>
-        <h1>Ami</h1>
-        <p class="hero-text">{assistantIntro}</p>
+<main class="min-h-screen bg-slate-50 p-4 md:p-8 flex justify-center">
+  <section class="w-full max-w-4xl bg-white border border-slate-200 rounded-3xl shadow-xl overflow-hidden flex flex-col">
+    <header class="p-6 md:p-8 flex flex-col md:flex-row items-start md:items-end justify-between gap-6 border-b border-slate-100 bg-slate-50/50">
+      <div class="max-w-xl">
+        <p class="text-xs font-bold tracking-widest uppercase text-slate-500 mb-2">Voice-first French practice</p>
+        <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900">Ami</h1>
+        <p class="text-slate-600 mt-3">{assistantIntro}</p>
       </div>
 
-      <div class="assistant-card">
-        <div class="assistant-avatar" aria-hidden="true">
+      <div class="bg-slate-900 text-slate-50 rounded-2xl p-4 flex items-center gap-4 shadow-lg min-w-[260px]">
+        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-200 to-orange-400 text-amber-950 flex items-center justify-center font-bold text-xl flex-shrink-0" aria-hidden="true">
           <span>A</span>
         </div>
-        <div class="assistant-meta">
-          <strong>AI Tutor</strong>
-          <span>{ttsError ?? (ttsReady ? activeVoiceName : 'Preparing Kokoro')}</span>
+        <div class="flex flex-col flex-grow">
+          <strong class="font-semibold">AI Tutor</strong>
+          <span class="text-slate-400 text-sm">{ttsError ?? (ttsReady ? activeVoiceName : 'Preparing Kokoro')}</span>
         </div>
         <button
-          class:muted={!ttsEnabled}
-          class="voice-toggle"
+          class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors {ttsEnabled ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-white/10 text-white/50'}"
           on:click={() => {
             ttsEnabled = !ttsEnabled;
             if (!ttsEnabled) stopSpeech();
@@ -412,36 +411,36 @@
       </div>
     </header>
 
-    <section class="conversation">
-      <div class="messages" bind:this={messagesEl}>
+    <section class="flex flex-col flex-grow min-h-0">
+      <div class="flex-grow overflow-y-auto p-6 md:p-8 flex flex-col gap-6" bind:this={messagesEl}>
         {#if messages.length === 0}
-          <div class="welcome-card">
-            <div class="welcome-avatar" aria-hidden="true">A</div>
+          <div class="flex items-start gap-4 p-6 rounded-2xl bg-amber-50/50 border border-amber-100">
+            <div class="w-12 h-12 rounded-xl bg-slate-800 text-white flex items-center justify-center font-bold text-xl flex-shrink-0" aria-hidden="true">A</div>
             <div>
-              <h2>Start in French</h2>
-              <p>Ask a question, introduce yourself, or record your voice. Ami will answer aloud and keep any correction in a separate lesson card.</p>
+              <h2 class="text-lg font-semibold text-slate-900 mb-1">Start in French</h2>
+              <p class="text-slate-600">Ask a question, introduce yourself, or record your voice. Ami will answer aloud and keep any correction in a separate lesson card.</p>
             </div>
           </div>
         {/if}
 
         {#each messages as msg (msg.id)}
-          <article class="message-row {msg.role}">
+          <article class="flex items-end gap-3 {msg.role === 'user' ? 'justify-end' : 'justify-start'}">
             {#if msg.role === 'assistant'}
-              <div class="message-avatar assistant-avatar small" aria-hidden="true">A</div>
+              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-200 to-orange-400 text-amber-950 flex items-center justify-center font-bold text-sm flex-shrink-0 hidden sm:flex" aria-hidden="true">A</div>
             {/if}
 
-            <div class="message-stack">
-              <div class="bubble {msg.role}">
-                <p>{msg.text}</p>
+            <div class="flex flex-col gap-2 max-w-[85%] md:max-w-[75%] {msg.role === 'user' ? 'items-end' : 'items-start'}">
+              <div class="px-5 py-4 rounded-2xl shadow-sm {msg.role === 'assistant' ? 'bg-white border border-slate-100 text-slate-800 rounded-bl-sm' : 'bg-slate-800 text-slate-50 rounded-br-sm'}">
+                <p class="whitespace-pre-wrap">{msg.text}</p>
                 {#if msg.role === 'assistant' && msg.text.trim()}
                   <button
-                    class="speak-reply"
+                    class="mt-3 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     type="button"
                     disabled={!ttsEnabled || msg.audioStatus === 'generating'}
                     on:click={() => void speakMessage(msg.id, msg.text)}
                   >
                     {#if msg.audioStatus === 'generating'}
-                      Preparing voice
+                      Preparing voice...
                     {:else if msg.audioStatus === 'blocked'}
                       Tap to play
                     {:else}
@@ -452,53 +451,51 @@
               </div>
 
               {#if msg.lesson}
-                <aside class="lesson-card">
-                  <span class="lesson-label">Petite leçon</span>
-                  <p>{msg.lesson}</p>
+                <aside class="p-4 rounded-xl bg-amber-50 border border-amber-200/60 text-amber-900 w-full">
+                  <span class="block mb-2 text-xs font-bold tracking-widest uppercase text-amber-700">Petite leçon</span>
+                  <p class="whitespace-pre-wrap text-sm">{msg.lesson}</p>
                 </aside>
               {/if}
             </div>
 
             {#if msg.role === 'user'}
-              <div class="message-avatar user-avatar small" aria-hidden="true">You</div>
+              <div class="w-10 h-10 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs flex-shrink-0 hidden sm:flex" aria-hidden="true">You</div>
             {/if}
           </article>
         {/each}
 
         {#if isThinking}
-          <article class="message-row assistant">
-            <div class="message-avatar assistant-avatar small" aria-hidden="true">A</div>
-            <div class="message-stack">
-              <div class="bubble assistant thinking-bubble">
-                <span></span>
-                <span></span>
-                <span></span>
-              </div>
+          <article class="flex items-end gap-3 justify-start">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-200 to-orange-400 text-amber-950 flex items-center justify-center font-bold text-sm flex-shrink-0 hidden sm:flex" aria-hidden="true">A</div>
+            <div class="px-5 py-4 rounded-2xl bg-white border border-slate-100 shadow-sm rounded-bl-sm flex items-center gap-1.5 h-[56px]">
+              <span class="w-2 h-2 rounded-full bg-slate-300 animate-pulse"></span>
+              <span class="w-2 h-2 rounded-full bg-slate-300 animate-pulse" style="animation-delay: 0.15s"></span>
+              <span class="w-2 h-2 rounded-full bg-slate-300 animate-pulse" style="animation-delay: 0.3s"></span>
             </div>
           </article>
         {/if}
       </div>
 
-      <section class="clips-panel">
-        <div class="clips-header">
+      <section class="px-6 md:px-8 pb-4">
+        <div class="flex items-end justify-between gap-4 mb-3">
           <div>
-            <p class="eyebrow clips-eyebrow">Voice clips</p>
-            <h2>Recorded audio</h2>
+            <p class="text-xs font-semibold tracking-wider uppercase text-slate-500 mb-1">Voice clips</p>
+            <h2 class="text-sm font-medium text-slate-800">Recorded audio</h2>
           </div>
-          <span>{voiceClips.length} clips</span>
+          <span class="text-xs text-slate-500">{voiceClips.length} clips</span>
         </div>
 
-        <div class="clips-list" bind:this={clipsEl}>
+        <div class="max-h-48 overflow-y-auto flex flex-col gap-2 pr-1" bind:this={clipsEl}>
           {#if voiceClips.length === 0}
-            <div class="clips-empty">
+            <div class="p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 text-slate-500 text-sm text-center">
               Your recordings will appear here after you stop speaking.
             </div>
           {/if}
 
           {#each voiceClips as clip}
-            <article class="clip-item">
+            <article class="flex items-center gap-4 p-3 md:p-4 rounded-xl border border-slate-100 bg-white shadow-sm">
               <button
-                class="clip-play"
+                class="px-4 py-2 rounded-full bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium transition-colors"
                 type="button"
                 on:click={() => playClip(clip.id)}
                 aria-label={activeClipId === clip.id ? 'Pause recording' : 'Play recording'}
@@ -519,12 +516,12 @@
                 }}
               ></audio>
 
-              <div class="clip-meta">
-                <div class="clip-title">
-                  <strong>Recording {clip.id}</strong>
-                  <span>{new Date(clip.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              <div class="flex-grow min-w-0">
+                <div class="flex flex-wrap gap-2 items-baseline mb-1">
+                  <strong class="text-sm text-slate-800">Recording {clip.id}</strong>
+                  <span class="text-xs text-slate-400">{new Date(clip.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
-                <p>
+                <p class="text-sm text-slate-600 truncate">
                   {#if clip.status === 'transcribing'}
                     Transcribing...
                   {:else if clip.transcript}
@@ -539,10 +536,11 @@
         </div>
       </section>
 
-      <form class="composer" on:submit|preventDefault={sendText}>
-        <label class="composer-field">
+      <form class="p-6 md:p-8 border-t border-slate-100 bg-slate-50/50 flex flex-col md:flex-row gap-3" on:submit|preventDefault={sendText}>
+        <label class="flex-grow">
           <span class="sr-only">Message in French</span>
           <input
+            class="w-full h-12 px-5 rounded-xl border border-slate-200 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-slate-800 disabled:opacity-50"
             type="text"
             bind:value={inputText}
             placeholder="Write in French..."
@@ -551,11 +549,20 @@
           />
         </label>
 
-        <div class="composer-actions">
-          <button class="secondary" type="button" on:click={isRecording ? stopRecording : startRecording} disabled={isThinking}>
+        <div class="flex gap-2">
+          <button 
+            class="h-12 px-6 rounded-xl font-medium transition-all {isRecording ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'} disabled:opacity-50" 
+            type="button" 
+            on:click={isRecording ? stopRecording : startRecording} 
+            disabled={isThinking}
+          >
             {isRecording ? 'Stop recording' : 'Speak'}
           </button>
-          <button class="primary" type="submit" disabled={isRecording || isThinking || !inputText.trim()}>
+          <button 
+            class="h-12 px-6 rounded-xl font-medium transition-all bg-slate-900 hover:bg-slate-800 text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed" 
+            type="submit" 
+            disabled={isRecording || isThinking || !inputText.trim()}
+          >
             Send
           </button>
         </div>
