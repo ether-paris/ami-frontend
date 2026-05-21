@@ -383,9 +383,8 @@
   <!-- Top App Bar -->
   <header class="h-16 bg-[#f0f2f5] px-4 flex items-center justify-between border-b border-slate-200/60 z-20 shrink-0">
     <div class="flex items-center gap-3 cursor-default">
-      <div class="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-semibold text-lg overflow-hidden relative">
-        <!-- Abstract avatar for Ami -->
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <div class="w-10 h-10 rounded-full bg-slate-200 overflow-hidden flex items-center justify-center shrink-0 border border-slate-300">
+        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Ami&backgroundColor=e2e8f0&style=circle" alt="Ami Tutor" class="w-full h-full object-cover" />
       </div>
       <div class="flex flex-col">
         <h1 class="text-[16px] font-semibold text-slate-800 leading-tight">Ami Tutor</h1>
@@ -419,17 +418,18 @@
       
       <!-- Welcome Message -->
       {#if messages.length === 0}
-        <div class="flex justify-center mb-6">
+        <div class="flex justify-center mb-6 mt-4">
           <div class="bg-[#ffeeba] text-slate-800 text-[13px] px-4 py-2 rounded-lg shadow-sm text-center max-w-sm">
-            Bonjour ! I am Ami, your French tutor. Messages are end-to-end simulated. 
-            Send a message or record a voice note to start.
+            <span class="block mb-2 font-semibold">🔒 End-to-end simulated</span>
+            Bonjour ! I am Ami, your French tutor. 
+            Send a message or record a voice note to start practicing.
           </div>
         </div>
       {/if}
 
       <!-- Messages Loop -->
       {#each messages as msg (msg.id)}
-        <div class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full">
+        <div class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full relative sm:pl-8">
           <div class="flex flex-col gap-1 max-w-[85%] md:max-w-[70%]">
             
             <!-- Message Bubble -->
@@ -448,6 +448,10 @@
                 <svg class="absolute top-0 -left-2 text-white" width="8" height="13" viewBox="0 0 8 13" fill="currentColor">
                   <path d="M8 0H0l8 13V0z"/>
                 </svg>
+                <!-- Small Avatar in chat if it's the first message in a group (simplified here) -->
+                <div class="absolute -left-9 top-0 w-7 h-7 rounded-full overflow-hidden bg-slate-200 border border-slate-300 hidden sm:block">
+                   <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Ami&backgroundColor=e2e8f0&style=circle" alt="Ami" class="w-full h-full object-cover" />
+                </div>
               {/if}
 
               <p class="whitespace-pre-wrap leading-snug">{msg.text}</p>
@@ -493,7 +497,11 @@
 
       <!-- Thinking Indicator -->
       {#if isThinking}
-        <div class="flex justify-start w-full mt-1">
+        <div class="flex justify-start w-full mt-1 relative pl-0 sm:pl-8">
+          <!-- Small Avatar -->
+          <div class="absolute -left-1 sm:left-[-4px] top-0 w-7 h-7 rounded-full overflow-hidden bg-slate-200 border border-slate-300 hidden sm:block">
+            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Ami&backgroundColor=e2e8f0&style=circle" alt="Ami" class="w-full h-full object-cover" />
+          </div>
           <div class="relative px-4 py-3 bg-white text-slate-900 rounded-lg rounded-tl-none shadow-sm flex items-center gap-1">
             <svg class="absolute top-0 -left-2 text-white" width="8" height="13" viewBox="0 0 8 13" fill="currentColor">
               <path d="M8 0H0l8 13V0z"/>
