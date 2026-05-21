@@ -18,6 +18,16 @@ type GroqTranscription = {
     text?: string;
 };
 
+const AUDIO_EXTENSION_BY_MIME: Record<string, string> = {
+    'audio/webm': 'webm',
+    'audio/ogg': 'ogg',
+    'audio/wav': 'wav',
+    'audio/mpeg': 'mp3',
+    'audio/mp4': 'mp4',
+    'audio/mp3': 'mp3',
+    'audio/x-m4a': 'm4a'
+};
+
 const SYSTEM_PROMPT = `You are an expert, native French tutor. Respond ONLY in French.
 
 For each user message:
@@ -55,7 +65,30 @@ const normalizeMessages = (messages: unknown): ChatMessage[] => {
         }));
 };
 
-const transcribeAudio = async (audioBase64: string) => {
+const getAudioFileDetails = (mimeType: unknown) => {
+    const cleanMimeType = typeof mimeType === 'string' ? mimeType.split(';')[0].trim().toLowerCase() : '';
+    const type = cleanMimeType && AUDIO_EXTENSION_BY_MIME[cleanMimeType] ? cleanMimeType : 'audio/webm';
+
+    return {
+        type,
+        filename: `audio.${AUDIO_EXTENSION_BY_MIME[type]}`
+    };
+};
+
+const readUpstreamError = async (res: Response, serviceName: string) => {
+    const body = await res.text().catch(() => '');
+
+    if (!body) return `${serviceName} failed with ${res.status}`;
+
+    try {
+        const parsed = JSON.parse(body) as { error?: { message?: string }; message?: string };
+        return parsed.error?.message || parsed.message || body;
+    } catch {
+        return body;
+    }
+};
+
+const transcribeAudio = async (audioBase64: string, mimeType: unknown) => {
     const groqApiKey = process.env.GROQ_API_KEY;
 
     if (!groqApiKey) {
@@ -63,8 +96,9 @@ const transcribeAudio = async (audioBase64: string) => {
     }
 
     const audioBytes = Buffer.from(audioBase64, 'base64');
+    const { type, filename } = getAudioFileDetails(mimeType);
     const form = new FormData();
-    form.append('file', new Blob([audioBytes], { type: 'audio/webm' }), 'audio.webm');
+    form.append('file', new Blob([audioBytes], { type }), filename);
     form.append('model', 'whisper-large-v3-turbo');
     form.append('language', 'fr');
     form.append('response_format', 'json');
@@ -78,7 +112,15 @@ const transcribeAudio = async (audioBase64: string) => {
     });
 
     if (!res.ok) {
-        throw error(502, 'Audio transcription failed');
+        const groqError = await readUpstreamError(res, 'Groq transcription');
+        console.error('Groq transcription failed', {
+            status: res.status,
+            type,
+            filename,
+            bytes: audioBytes.byteLength,
+            error: groqError
+        });
+        throw error(502, `Audio transcription failed: ${groqError}`);
     }
 
     const data = (await res.json()) as GroqTranscription;
@@ -126,10 +168,12 @@ export const POST: RequestHandler = async ({ request }) => {
     const audioBase64 = typeof body?.audio === 'string' ? body.audio : null;
 
     if (audioBase64) {
-        transcript = await transcribeAudio(audioBase64);
+        transcript = await transcribeAudio(audioBase64, body?.audioMimeType);
 
         if (transcript) {
             messages.push({ role: 'user', content: transcript });
+        } else {
+            throw error(422, 'Audio transcription was empty. Please try a clearer or longer recording.');
         }
     }
 
@@ -151,13 +195,22 @@ export const POST: RequestHandler = async ({ request }) => {
             'X-OpenRouter-Title': 'Ami French Tutor'
         },
         body: JSON.stringify({
-            model: 'openrouter/free',
-            messages: requestMessages
+            model: 'openai/gpt-oss-120b:free',
+            messages: requestMessages,
+            temperature: 0.4,
+            max_tokens: 500
         })
     });
 
     if (!res.ok) {
-        throw error(502, 'AI response failed');
+        const openRouterError = await readUpstreamError(res, 'OpenRouter chat completion');
+        console.error('OpenRouter chat completion failed', {
+            status: res.status,
+            model: 'openai/gpt-oss-120b:free',
+            messageCount: requestMessages.length,
+            error: openRouterError
+        });
+        throw error(502, `AI response failed: ${openRouterError}`);
     }
 
     const data = (await res.json()) as OpenRouterResponse;

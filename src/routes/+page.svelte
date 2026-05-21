@@ -75,16 +75,12 @@
 
   const scrollToLatest = async () => {
     await tick();
-    if (messagesEl) {
-        messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
-    }
+    messagesEl?.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
   };
 
   const scrollClipsToLatest = async () => {
     await tick();
-    if (clipsEl) {
-        clipsEl.scrollTo({ top: clipsEl.scrollHeight, behavior: 'smooth' });
-    }
+    clipsEl?.scrollTo({ top: clipsEl.scrollHeight, behavior: 'smooth' });
   };
 
   const stopSpeech = () => {
@@ -366,6 +362,13 @@
     stopSpeech();
   });
 
+  const stopRecording = () => {
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop();
+      isRecording = false;
+    }
+  };
+
   onMount(() => {
     // TTS is now handled by the backend server
   });
@@ -379,219 +382,184 @@
   />
 </svelte:head>
 
-<main class="flex flex-col h-screen w-full bg-[#efeae2] font-sans text-slate-900 overflow-hidden relative">
-  <!-- Top App Bar -->
-  <header class="h-16 bg-[#f0f2f5] px-4 flex items-center justify-between border-b border-slate-200/60 z-20 shrink-0">
-    <div class="flex items-center gap-3 cursor-default">
-      <div class="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-semibold text-lg overflow-hidden relative">
-        <!-- Abstract avatar for Ami -->
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+<main class="page-shell">
+  <section class="chat-frame">
+    <header class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Voice-first French practice</p>
+        <h1>Ami</h1>
+        <p class="hero-text">{assistantIntro}</p>
       </div>
-      <div class="flex flex-col">
-        <h1 class="text-[16px] font-semibold text-slate-800 leading-tight">Ami Tutor</h1>
-        <span class="text-[13px] text-emerald-600 font-medium flex items-center gap-1.5">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-          {ttsReady ? 'Online' : 'Connecting...'}
-        </span>
-      </div>
-    </div>
 
-    <!-- Right Controls -->
-    <div class="flex items-center gap-2">
-      <!-- Voice Toggle -->
-      <button 
-        class="flex items-center justify-center w-10 h-10 rounded-full transition-colors {ttsEnabled ? 'text-slate-600 hover:bg-slate-200/70' : 'text-slate-400 bg-slate-200/50'}"
-        on:click={() => { ttsEnabled = !ttsEnabled; if (!ttsEnabled) stopSpeech(); }}
-        title={ttsEnabled ? "Mute Voice" : "Enable Voice"}
-      >
-        {#if ttsEnabled}
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
-        {:else}
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
-        {/if}
-      </button>
-    </div>
-  </header>
-
-  <!-- Main Chat Area -->
-  <div class="flex-1 overflow-y-auto px-2 sm:px-4 md:px-10 py-6" bind:this={messagesEl} style="background-image: radial-gradient(#d5d0c8 1px, transparent 1px); background-size: 24px 24px;">
-    <div class="max-w-4xl mx-auto flex flex-col gap-3 pb-4">
-      
-      <!-- Welcome Message -->
-      {#if messages.length === 0}
-        <div class="flex justify-center mb-6">
-          <div class="bg-[#ffeeba] text-slate-800 text-[13px] px-4 py-2 rounded-lg shadow-sm text-center max-w-sm">
-            Bonjour ! I am Ami, your French tutor. Messages are end-to-end simulated. 
-            Send a message or record a voice note to start.
-          </div>
+      <div class="assistant-card">
+        <div class="assistant-avatar" aria-hidden="true">
+          <span>A</span>
         </div>
-      {/if}
+        <div class="assistant-meta">
+          <strong>AI Tutor</strong>
+          <span>{ttsError ?? (ttsReady ? activeVoiceName : 'Preparing Kokoro')}</span>
+        </div>
+        <button
+          class:muted={!ttsEnabled}
+          class="voice-toggle"
+          on:click={() => {
+            ttsEnabled = !ttsEnabled;
+            if (!ttsEnabled) stopSpeech();
+          }}
+        >
+          {ttsEnabled ? 'Voice on' : 'Voice off'}
+        </button>
+      </div>
+    </header>
 
-      <!-- Messages Loop -->
-      {#each messages as msg (msg.id)}
-        <div class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full">
-          <div class="flex flex-col gap-1 max-w-[85%] md:max-w-[70%]">
-            
-            <!-- Message Bubble -->
-            <div class="relative px-3 py-2 sm:px-4 sm:py-2.5 text-[15px] shadow-[0_1px_1px_rgba(0,0,0,0.1)] 
-              {msg.role === 'user' 
-                ? 'bg-[#d9fdd3] text-slate-900 rounded-lg rounded-tr-none' 
-                : 'bg-white text-slate-900 rounded-lg rounded-tl-none'
-              }"
-            >
-              <!-- Tail Triangles -->
-              {#if msg.role === 'user'}
-                <svg class="absolute top-0 -right-2 text-[#d9fdd3]" width="8" height="13" viewBox="0 0 8 13" fill="currentColor">
-                  <path d="M0 0h8L0 13V0z"/>
-                </svg>
-              {:else}
-                <svg class="absolute top-0 -left-2 text-white" width="8" height="13" viewBox="0 0 8 13" fill="currentColor">
-                  <path d="M8 0H0l8 13V0z"/>
-                </svg>
-              {/if}
+    <section class="conversation">
+      <div class="messages" bind:this={messagesEl}>
+        {#if messages.length === 0}
+          <div class="welcome-card">
+            <div class="welcome-avatar" aria-hidden="true">A</div>
+            <div>
+              <h2>Start in French</h2>
+              <p>Ask a question, introduce yourself, or record your voice. Ami will answer aloud and keep any correction in a separate lesson card.</p>
+            </div>
+          </div>
+        {/if}
 
-              <p class="whitespace-pre-wrap leading-snug">{msg.text}</p>
-              
-              <!-- Voice Button for Assistant -->
-              {#if msg.role === 'assistant' && msg.text.trim()}
-                <div class="mt-1 -mb-1 flex justify-end">
+        {#each messages as msg (msg.id)}
+          <article class="message-row {msg.role}">
+            {#if msg.role === 'assistant'}
+              <div class="message-avatar assistant-avatar small" aria-hidden="true">A</div>
+            {/if}
+
+            <div class="message-stack">
+              <div class="bubble {msg.role}">
+                <p>{msg.text}</p>
+                {#if msg.role === 'assistant' && msg.text.trim()}
                   <button
-                    class="text-[11px] font-medium flex items-center gap-1 transition-colors disabled:opacity-50
-                      {msg.audioStatus === 'generating' ? 'text-emerald-600' : 'text-slate-400 hover:text-emerald-600'}"
+                    class="speak-reply"
+                    type="button"
                     disabled={!ttsEnabled || msg.audioStatus === 'generating'}
                     on:click={() => void speakMessage(msg.id, msg.text)}
                   >
                     {#if msg.audioStatus === 'generating'}
-                      <svg class="animate-spin" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
-                      Loading voice
+                      Preparing voice
                     {:else if msg.audioStatus === 'blocked'}
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                      Play
+                      Tap to play
                     {:else}
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
-                      Listen
+                      Play voice
                     {/if}
                   </button>
-                </div>
+                {/if}
+              </div>
+
+              {#if msg.lesson}
+                <aside class="lesson-card">
+                  <span class="lesson-label">Petite leçon</span>
+                  <p>{msg.lesson}</p>
+                </aside>
               {/if}
             </div>
 
-            <!-- Teaching Note (Separate Card) -->
-            {#if msg.lesson}
-              <div class="mt-1 bg-[#f0f2f5] border border-slate-200/60 rounded-lg p-3 shadow-sm text-slate-700 self-start w-full">
-                <div class="flex items-center gap-1.5 mb-1.5">
-                  <svg class="text-emerald-600" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                  <span class="text-[12px] font-bold uppercase tracking-wider text-slate-500">Petite leçon</span>
-                </div>
-                <p class="whitespace-pre-wrap text-[13.5px] leading-relaxed">{msg.lesson}</p>
+            {#if msg.role === 'user'}
+              <div class="message-avatar user-avatar small" aria-hidden="true">You</div>
+            {/if}
+          </article>
+        {/each}
+
+        {#if isThinking}
+          <article class="message-row assistant">
+            <div class="message-avatar assistant-avatar small" aria-hidden="true">A</div>
+            <div class="message-stack">
+              <div class="bubble assistant thinking-bubble">
+                <span></span>
+                <span></span>
+                <span></span>
               </div>
-            {/if}
-
-          </div>
-        </div>
-      {/each}
-
-      <!-- Thinking Indicator -->
-      {#if isThinking}
-        <div class="flex justify-start w-full mt-1">
-          <div class="relative px-4 py-3 bg-white text-slate-900 rounded-lg rounded-tl-none shadow-sm flex items-center gap-1">
-            <svg class="absolute top-0 -left-2 text-white" width="8" height="13" viewBox="0 0 8 13" fill="currentColor">
-              <path d="M8 0H0l8 13V0z"/>
-            </svg>
-            <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce"></span>
-            <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style="animation-delay: 0.15s"></span>
-            <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" style="animation-delay: 0.3s"></span>
-          </div>
-        </div>
-      {/if}
-    </div>
-  </div>
-
-  <!-- Clips/History Drawer (Sliding up above input when there are clips) -->
-  {#if voiceClips.length > 0}
-    <div class="bg-[#f0f2f5] border-t border-slate-200/80 px-4 py-2 shrink-0 flex items-center gap-3 overflow-x-auto" bind:this={clipsEl}>
-      <span class="text-xs font-semibold text-slate-500 uppercase tracking-widest shrink-0">Clips</span>
-      {#each voiceClips as clip}
-        <button 
-          class="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-full shadow-sm shrink-0 hover:bg-slate-50 transition-colors {activeClipId === clip.id ? 'ring-2 ring-emerald-500/50' : ''}"
-          on:click={() => playClip(clip.id)}
-        >
-          <div class="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-emerald-600">
-            {#if activeClipId === clip.id}
-               <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
-            {:else}
-               <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-            {/if}
-          </div>
-          <span class="text-[12px] font-medium text-slate-600 max-w-[100px] truncate">
-            {#if clip.status === 'transcribing'}
-              Translating...
-            {:else if clip.transcript}
-              {clip.transcript}
-            {:else}
-              Audio
-            {/if}
-          </span>
-        </button>
-      {/each}
-    </div>
-  {/if}
-
-  <!-- Bottom Input Bar -->
-  <footer class="bg-[#f0f2f5] px-2 sm:px-4 py-3 border-t border-slate-200/60 shrink-0">
-    <div class="max-w-4xl mx-auto">
-      <form 
-        class="flex items-end gap-2 relative"
-        on:submit|preventDefault={sendText}
-      >
-        <!-- Text Input -->
-        <div class="flex-1 bg-white rounded-2xl sm:rounded-full border border-slate-300 shadow-sm flex items-end relative overflow-hidden transition-all focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500">
-          <textarea
-            class="w-full max-h-32 min-h-[44px] py-3 pl-4 pr-12 bg-transparent border-none resize-none focus:outline-none focus:ring-0 text-[15px] placeholder:text-slate-400 disabled:opacity-50"
-            bind:value={inputText}
-            placeholder="Type a message"
-            disabled={isThinking || isRecording}
-            rows="1"
-            on:keydown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                if (inputText.trim()) sendText();
-              }
-            }}
-          ></textarea>
-
-          <!-- Submit Button (Inside input on right) -->
-          {#if inputText.trim()}
-            <button 
-              type="submit"
-              class="absolute right-1 bottom-1 p-2 rounded-full text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-50"
-              disabled={isThinking}
-              aria-label="Send message"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
-            </button>
-          {/if}
-        </div>
-
-        <!-- Voice Record Button -->
-        {#if !inputText.trim()}
-          <button 
-            type="button"
-            class="flex-shrink-0 w-[44px] h-[44px] rounded-full flex items-center justify-center transition-all shadow-sm
-              {isRecording 
-                ? 'bg-red-500 text-white animate-pulse' 
-                : 'bg-emerald-600 text-white hover:bg-emerald-700'}"
-            on:click={isRecording ? stopRecording : startRecording}
-            disabled={isThinking}
-          >
-            {#if isRecording}
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-            {:else}
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
-            {/if}
-          </button>
+            </div>
+          </article>
         {/if}
+      </div>
+
+      <section class="clips-panel">
+        <div class="clips-header">
+          <div>
+            <p class="eyebrow clips-eyebrow">Voice clips</p>
+            <h2>Recorded audio</h2>
+          </div>
+          <span>{voiceClips.length} clips</span>
+        </div>
+
+        <div class="clips-list" bind:this={clipsEl}>
+          {#if voiceClips.length === 0}
+            <div class="clips-empty">
+              Your recordings will appear here after you stop speaking.
+            </div>
+          {/if}
+
+          {#each voiceClips as clip}
+            <article class="clip-item">
+              <button
+                class="clip-play"
+                type="button"
+                on:click={() => playClip(clip.id)}
+                aria-label={activeClipId === clip.id ? 'Pause recording' : 'Play recording'}
+              >
+                {activeClipId === clip.id ? 'Pause' : 'Play'}
+              </button>
+
+              <audio
+                id={`clip-audio-${clip.id}`}
+                src={clip.url}
+                preload="none"
+                on:play={() => (activeClipId = clip.id)}
+                on:pause={() => {
+                  if (activeClipId === clip.id) activeClipId = null;
+                }}
+                on:ended={() => {
+                  if (activeClipId === clip.id) activeClipId = null;
+                }}
+              ></audio>
+
+              <div class="clip-meta">
+                <div class="clip-title">
+                  <strong>Recording {clip.id}</strong>
+                  <span>{new Date(clip.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+                <p>
+                  {#if clip.status === 'transcribing'}
+                    Transcribing...
+                  {:else if clip.transcript}
+                    {clip.transcript}
+                  {:else}
+                    Tap play to listen back.
+                  {/if}
+                </p>
+              </div>
+            </article>
+          {/each}
+        </div>
+      </section>
+
+      <form class="composer" on:submit|preventDefault={sendText}>
+        <label class="composer-field">
+          <span class="sr-only">Message in French</span>
+          <input
+            type="text"
+            bind:value={inputText}
+            placeholder="Write in French..."
+            autocomplete="off"
+            disabled={isThinking}
+          />
+        </label>
+
+        <div class="composer-actions">
+          <button class="secondary" type="button" on:click={isRecording ? stopRecording : startRecording} disabled={isThinking}>
+            {isRecording ? 'Stop recording' : 'Speak'}
+          </button>
+          <button class="primary" type="submit" disabled={isRecording || isThinking || !inputText.trim()}>
+            Send
+          </button>
+        </div>
       </form>
-    </div>
-  </footer>
+    </section>
+  </section>
 </main>
