@@ -75,12 +75,16 @@
 
   const scrollToLatest = async () => {
     await tick();
-    messagesEl?.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
+    if (messagesEl) {
+        messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
+    }
   };
 
   const scrollClipsToLatest = async () => {
     await tick();
-    clipsEl?.scrollTo({ top: clipsEl.scrollHeight, behavior: 'smooth' });
+    if (clipsEl) {
+        clipsEl.scrollTo({ top: clipsEl.scrollHeight, behavior: 'smooth' });
+    }
   };
 
   const stopSpeech = () => {
@@ -362,13 +366,6 @@
     stopSpeech();
   });
 
-  const stopRecording = () => {
-    if (mediaRecorder && isRecording) {
-      mediaRecorder.stop();
-      isRecording = false;
-    }
-  };
-
   onMount(() => {
     // TTS is now handled by the backend server
   });
@@ -382,191 +379,224 @@
   />
 </svelte:head>
 
-<main class="min-h-screen bg-slate-50 p-4 md:p-8 flex justify-center">
-  <section class="w-full max-w-4xl bg-white border border-slate-200 rounded-3xl shadow-xl overflow-hidden flex flex-col">
-    <header class="p-6 md:p-8 flex flex-col md:flex-row items-start md:items-end justify-between gap-6 border-b border-slate-100 bg-slate-50/50">
-      <div class="max-w-xl">
-        <p class="text-xs font-bold tracking-widest uppercase text-slate-500 mb-2">Voice-first French practice</p>
-        <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900">Ami</h1>
-        <p class="text-slate-600 mt-3">{assistantIntro}</p>
+<main class="flex h-screen w-full bg-slate-50 overflow-hidden font-sans text-slate-900">
+  <!-- Desktop Sidebar -->
+  <aside class="hidden md:flex w-80 flex-col bg-slate-950 text-slate-50 border-r border-slate-800 shadow-2xl z-20">
+    <div class="p-6 flex flex-col gap-2 border-b border-slate-800/80">
+      <div class="flex items-center gap-3">
+         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-lg shadow-inner">A</div>
+         <h1 class="text-xl font-bold tracking-tight text-white">Ami Tutor</h1>
       </div>
-
-      <div class="bg-slate-900 text-slate-50 rounded-2xl p-4 flex items-center gap-4 shadow-lg min-w-[260px]">
-        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-200 to-orange-400 text-amber-950 flex items-center justify-center font-bold text-xl flex-shrink-0" aria-hidden="true">
-          <span>A</span>
+      <p class="text-slate-400 text-sm mt-3 leading-relaxed">Your voice-first French tutor that listens and replies naturally.</p>
+    </div>
+    
+    <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-6" bind:this={clipsEl}>
+      <!-- Voice Clips Section -->
+      <div>
+        <div class="flex items-center justify-between mb-3 px-2">
+          <h2 class="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Recorded Clips</h2>
+          <span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">{voiceClips.length}</span>
         </div>
-        <div class="flex flex-col flex-grow">
-          <strong class="font-semibold">AI Tutor</strong>
-          <span class="text-slate-400 text-sm">{ttsError ?? (ttsReady ? activeVoiceName : 'Preparing Kokoro')}</span>
+        
+        <div class="flex flex-col gap-1">
+          {#if voiceClips.length === 0}
+            <div class="text-slate-500 text-sm px-2 py-4 italic text-center border border-dashed border-slate-800 rounded-xl mt-2">No recordings yet.</div>
+          {/if}
+          {#each voiceClips as clip}
+            <button 
+              class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-slate-800/50 transition-colors text-left group {activeClipId === clip.id ? 'bg-slate-800/80 ring-1 ring-slate-700' : ''}"
+              on:click={() => playClip(clip.id)}
+            >
+              <div class="w-8 h-8 rounded-full bg-slate-800 group-hover:bg-indigo-600 group-hover:text-white flex items-center justify-center flex-shrink-0 text-slate-400 transition-colors {activeClipId === clip.id ? 'bg-indigo-600 text-white' : ''}">
+                {#if activeClipId === clip.id}
+                  <!-- Pause icon -->
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                {:else}
+                  <!-- Play icon -->
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                {/if}
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium text-slate-200 truncate flex items-center gap-2">
+                  Clip {clip.id}
+                  <span class="text-[10px] text-slate-500 font-normal">{new Date(clip.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+                <div class="text-[13px] text-slate-400 truncate mt-0.5">
+                   {#if clip.status === 'transcribing'}
+                    <span class="text-indigo-400 animate-pulse">Transcribing...</span>
+                  {:else if clip.transcript}
+                    {clip.transcript}
+                  {:else}
+                    Tap to play
+                  {/if}
+                </div>
+              </div>
+            </button>
+          {/each}
         </div>
-        <button
-          class="px-3 py-1.5 rounded-full text-sm font-medium transition-colors {ttsEnabled ? 'bg-white/20 hover:bg-white/30 text-white' : 'bg-white/10 text-white/50'}"
-          on:click={() => {
-            ttsEnabled = !ttsEnabled;
-            if (!ttsEnabled) stopSpeech();
-          }}
+      </div>
+    </div>
+    
+    <div class="p-4 border-t border-slate-800/80 bg-slate-900/30">
+      <div class="flex items-center justify-between p-3.5 rounded-xl bg-slate-900 border border-slate-800 shadow-inner">
+        <div class="flex flex-col gap-0.5">
+          <span class="text-sm font-medium text-slate-200">Voice Output</span>
+          <span class="text-[11px] text-slate-400 flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full {ttsReady ? 'bg-emerald-500' : 'bg-amber-500'}"></span>
+            {ttsError ?? (ttsReady ? activeVoiceName : 'Preparing...')}
+          </span>
+        </div>
+        <button 
+          class="w-11 h-6 rounded-full transition-colors relative shadow-inner focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-slate-900 {ttsEnabled ? 'bg-indigo-500' : 'bg-slate-700'}"
+          on:click={() => { ttsEnabled = !ttsEnabled; if (!ttsEnabled) stopSpeech(); }}
+          aria-label="Toggle voice output"
         >
-          {ttsEnabled ? 'Voice on' : 'Voice off'}
+          <span class="absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform shadow-sm {ttsEnabled ? 'translate-x-5' : 'translate-x-0'}"></span>
         </button>
       </div>
+    </div>
+  </aside>
+
+  <!-- Main Chat Area -->
+  <main class="flex-1 flex flex-col bg-white relative shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.1)] z-10">
+    <!-- Mobile Header -->
+    <header class="md:hidden flex items-center justify-between p-4 border-b border-slate-100 bg-white/80 backdrop-blur-md sticky top-0 z-10">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold shadow-sm">A</div>
+        <h1 class="text-lg font-bold text-slate-900">Ami Tutor</h1>
+      </div>
+      <button 
+         class="text-xs font-semibold px-3.5 py-1.5 rounded-full transition-colors {ttsEnabled ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'}"
+         on:click={() => { ttsEnabled = !ttsEnabled; if (!ttsEnabled) stopSpeech(); }}
+      >
+        {ttsEnabled ? 'Voice On' : 'Voice Off'}
+      </button>
     </header>
 
-    <section class="flex flex-col flex-grow min-h-0">
-      <div class="flex-grow overflow-y-auto p-6 md:p-8 flex flex-col gap-6" bind:this={messagesEl}>
+    <!-- Messages -->
+    <div class="flex-1 overflow-y-auto" bind:this={messagesEl}>
+      <div class="max-w-3xl mx-auto w-full p-4 sm:p-6 md:p-8 flex flex-col gap-8 pb-40">
         {#if messages.length === 0}
-          <div class="flex items-start gap-4 p-6 rounded-2xl bg-amber-50/50 border border-amber-100">
-            <div class="w-12 h-12 rounded-xl bg-slate-800 text-white flex items-center justify-center font-bold text-xl flex-shrink-0" aria-hidden="true">A</div>
-            <div>
-              <h2 class="text-lg font-semibold text-slate-900 mb-1">Start in French</h2>
-              <p class="text-slate-600">Ask a question, introduce yourself, or record your voice. Ami will answer aloud and keep any correction in a separate lesson card.</p>
-            </div>
+          <div class="flex flex-col items-center justify-center text-center mt-12 md:mt-24 space-y-5 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <div class="w-20 h-20 rounded-3xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center font-bold text-4xl shadow-xl shadow-indigo-500/20 ring-4 ring-indigo-50">A</div>
+            <h2 class="text-3xl font-bold text-slate-900 tracking-tight">Bonjour!</h2>
+            <p class="text-slate-500 max-w-sm text-[15px] leading-relaxed">I'm Ami, your AI French tutor. Send a message or record a voice clip to get started.</p>
           </div>
         {/if}
 
         {#each messages as msg (msg.id)}
-          <article class="flex items-end gap-3 {msg.role === 'user' ? 'justify-end' : 'justify-start'}">
-            {#if msg.role === 'assistant'}
-              <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-200 to-orange-400 text-amber-950 flex items-center justify-center font-bold text-sm flex-shrink-0 hidden sm:flex" aria-hidden="true">A</div>
-            {/if}
+          <div class="flex gap-4 group {msg.role === 'user' ? 'flex-row-reverse' : ''}">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-auto mb-1 shadow-sm {msg.role === 'user' ? 'bg-slate-100 text-slate-500' : 'bg-gradient-to-br from-indigo-500 to-purple-600 text-white'}">
+              {#if msg.role === 'user'}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+              {:else}
+                <span class="font-bold text-sm">A</span>
+              {/if}
+            </div>
 
             <div class="flex flex-col gap-2 max-w-[85%] md:max-w-[75%] {msg.role === 'user' ? 'items-end' : 'items-start'}">
-              <div class="px-5 py-4 rounded-2xl shadow-sm {msg.role === 'assistant' ? 'bg-white border border-slate-100 text-slate-800 rounded-bl-sm' : 'bg-slate-800 text-slate-50 rounded-br-sm'}">
-                <p class="whitespace-pre-wrap">{msg.text}</p>
-                {#if msg.role === 'assistant' && msg.text.trim()}
+              <div class="px-5 py-3.5 text-[15px] shadow-sm {msg.role === 'user' ? 'bg-slate-900 text-white rounded-3xl rounded-br-sm' : 'bg-white border border-slate-200 text-slate-800 rounded-3xl rounded-bl-sm'}">
+                <p class="whitespace-pre-wrap leading-relaxed">{msg.text}</p>
+              </div>
+
+              {#if msg.role === 'assistant' && msg.text.trim()}
+                <div class="flex items-center gap-2 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
-                    class="mt-3 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    type="button"
+                    class="text-xs font-medium flex items-center gap-1.5 text-slate-400 hover:text-indigo-600 transition-colors disabled:opacity-50"
                     disabled={!ttsEnabled || msg.audioStatus === 'generating'}
                     on:click={() => void speakMessage(msg.id, msg.text)}
                   >
                     {#if msg.audioStatus === 'generating'}
-                      Preparing voice...
+                      <svg class="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"></path></svg>
+                      Generating...
                     {:else if msg.audioStatus === 'blocked'}
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
                       Tap to play
                     {:else}
-                      Play voice
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
+                      Read aloud
                     {/if}
                   </button>
-                {/if}
-              </div>
+                </div>
+              {/if}
 
               {#if msg.lesson}
-                <aside class="p-4 rounded-xl bg-amber-50 border border-amber-200/60 text-amber-900 w-full">
-                  <span class="block mb-2 text-xs font-bold tracking-widest uppercase text-amber-700">Petite leçon</span>
-                  <p class="whitespace-pre-wrap text-sm">{msg.lesson}</p>
-                </aside>
+                <div class="mt-1 p-5 rounded-2xl bg-indigo-50/80 border border-indigo-100/80 text-indigo-950 w-full shadow-sm">
+                  <div class="flex items-center gap-2 mb-3">
+                    <div class="p-1.5 rounded-md bg-indigo-100 text-indigo-600">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+                    </div>
+                    <span class="text-xs font-bold tracking-widest uppercase text-indigo-800">Petite leçon</span>
+                  </div>
+                  <p class="whitespace-pre-wrap text-[14px] leading-relaxed text-indigo-900/90 font-medium">{msg.lesson}</p>
+                </div>
               {/if}
             </div>
-
-            {#if msg.role === 'user'}
-              <div class="w-10 h-10 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs flex-shrink-0 hidden sm:flex" aria-hidden="true">You</div>
-            {/if}
-          </article>
+          </div>
         {/each}
 
         {#if isThinking}
-          <article class="flex items-end gap-3 justify-start">
-            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-200 to-orange-400 text-amber-950 flex items-center justify-center font-bold text-sm flex-shrink-0 hidden sm:flex" aria-hidden="true">A</div>
-            <div class="px-5 py-4 rounded-2xl bg-white border border-slate-100 shadow-sm rounded-bl-sm flex items-center gap-1.5 h-[56px]">
-              <span class="w-2 h-2 rounded-full bg-slate-300 animate-pulse"></span>
-              <span class="w-2 h-2 rounded-full bg-slate-300 animate-pulse" style="animation-delay: 0.15s"></span>
-              <span class="w-2 h-2 rounded-full bg-slate-300 animate-pulse" style="animation-delay: 0.3s"></span>
+          <div class="flex gap-4">
+            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center flex-shrink-0 mt-auto mb-1 shadow-sm">
+              <span class="font-bold text-sm">A</span>
             </div>
-          </article>
+            <div class="px-5 py-4 bg-white border border-slate-200 rounded-3xl rounded-bl-sm flex items-center gap-1.5 shadow-sm h-[52px]">
+              <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style="animation-delay: 0.15s"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-bounce" style="animation-delay: 0.3s"></span>
+            </div>
+          </div>
         {/if}
       </div>
+    </div>
 
-      <section class="px-6 md:px-8 pb-4">
-        <div class="flex items-end justify-between gap-4 mb-3">
-          <div>
-            <p class="text-xs font-semibold tracking-wider uppercase text-slate-500 mb-1">Voice clips</p>
-            <h2 class="text-sm font-medium text-slate-800">Recorded audio</h2>
-          </div>
-          <span class="text-xs text-slate-500">{voiceClips.length} clips</span>
-        </div>
-
-        <div class="max-h-48 overflow-y-auto flex flex-col gap-2 pr-1" bind:this={clipsEl}>
-          {#if voiceClips.length === 0}
-            <div class="p-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 text-slate-500 text-sm text-center">
-              Your recordings will appear here after you stop speaking.
-            </div>
-          {/if}
-
-          {#each voiceClips as clip}
-            <article class="flex items-center gap-4 p-3 md:p-4 rounded-xl border border-slate-100 bg-white shadow-sm">
-              <button
-                class="px-4 py-2 rounded-full bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium transition-colors"
-                type="button"
-                on:click={() => playClip(clip.id)}
-                aria-label={activeClipId === clip.id ? 'Pause recording' : 'Play recording'}
-              >
-                {activeClipId === clip.id ? 'Pause' : 'Play'}
-              </button>
-
-              <audio
-                id={`clip-audio-${clip.id}`}
-                src={clip.url}
-                preload="none"
-                on:play={() => (activeClipId = clip.id)}
-                on:pause={() => {
-                  if (activeClipId === clip.id) activeClipId = null;
-                }}
-                on:ended={() => {
-                  if (activeClipId === clip.id) activeClipId = null;
-                }}
-              ></audio>
-
-              <div class="flex-grow min-w-0">
-                <div class="flex flex-wrap gap-2 items-baseline mb-1">
-                  <strong class="text-sm text-slate-800">Recording {clip.id}</strong>
-                  <span class="text-xs text-slate-400">{new Date(clip.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                </div>
-                <p class="text-sm text-slate-600 truncate">
-                  {#if clip.status === 'transcribing'}
-                    Transcribing...
-                  {:else if clip.transcript}
-                    {clip.transcript}
-                  {:else}
-                    Tap play to listen back.
-                  {/if}
-                </p>
-              </div>
-            </article>
-          {/each}
-        </div>
-      </section>
-
-      <form class="p-6 md:p-8 border-t border-slate-100 bg-slate-50/50 flex flex-col md:flex-row gap-3" on:submit|preventDefault={sendText}>
-        <label class="flex-grow">
-          <span class="sr-only">Message in French</span>
-          <input
-            class="w-full h-12 px-5 rounded-xl border border-slate-200 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all text-slate-800 disabled:opacity-50"
-            type="text"
-            bind:value={inputText}
-            placeholder="Write in French..."
-            autocomplete="off"
-            disabled={isThinking}
-          />
-        </label>
-
-        <div class="flex gap-2">
+    <!-- Input Area -->
+    <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-white/0 pt-10 pb-6 px-4 sm:px-6 md:px-8">
+      <div class="max-w-3xl mx-auto">
+        <form 
+          class="relative flex items-end gap-2 bg-white border border-slate-300 rounded-3xl p-2 shadow-[0_8px_30px_rgb(0,0,0,0.04)] focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500 transition-all"
+          on:submit|preventDefault={sendText}
+        >
           <button 
-            class="h-12 px-6 rounded-xl font-medium transition-all {isRecording ? 'bg-red-50 text-red-600 border border-red-200 hover:bg-red-100' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'} disabled:opacity-50" 
-            type="button" 
-            on:click={isRecording ? stopRecording : startRecording} 
+            type="button"
+            class="p-3 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-2xl transition-colors mb-0.5 {isRecording ? 'text-red-500 bg-red-50 hover:bg-red-100 hover:text-red-600 animate-pulse' : ''}"
+            on:click={isRecording ? stopRecording : startRecording}
             disabled={isThinking}
+            title={isRecording ? "Stop recording" : "Record voice"}
           >
-            {isRecording ? 'Stop recording' : 'Speak'}
+            {#if isRecording}
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+            {:else}
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+            {/if}
           </button>
+          
+          <textarea
+            class="flex-1 max-h-32 min-h-[48px] py-3.5 px-2 bg-transparent border-none resize-none focus:outline-none focus:ring-0 text-[15px] placeholder:text-slate-400 disabled:opacity-50 font-medium"
+            bind:value={inputText}
+            placeholder="Message Ami in French..."
+            disabled={isThinking}
+            rows="1"
+            on:keydown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                if (inputText.trim()) sendText();
+              }
+            }}
+          ></textarea>
+
           <button 
-            class="h-12 px-6 rounded-xl font-medium transition-all bg-slate-900 hover:bg-slate-800 text-white shadow-sm disabled:opacity-50 disabled:cursor-not-allowed" 
-            type="submit" 
+            type="submit"
+            class="p-3 m-0.5 rounded-2xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:bg-slate-100 disabled:text-slate-400 transition-colors mb-0.5 shadow-sm"
             disabled={isRecording || isThinking || !inputText.trim()}
           >
-            Send
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
           </button>
+        </form>
+        <div class="text-center mt-3">
+          <span class="text-[11px] font-medium text-slate-400">Ami can make mistakes. Consider verifying important information.</span>
         </div>
-      </form>
-    </section>
-  </section>
+      </div>
+    </div>
+  </main>
 </main>
