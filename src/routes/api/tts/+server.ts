@@ -12,9 +12,9 @@ export const POST: RequestHandler = async ({ request }) => {
         throw error(400, 'Text is required');
     }
 
-    // You can set KOKORO_API_URL in your environment variables, e.g., http://kokoro-tts-service:8880
-    // Defaulting to localhost:8880 for local development if not provided.
-    const apiUrl = process.env.KOKORO_API_URL || 'http://localhost:8880';
+    // You can set KOKORO_API_URL in your environment variables.
+    // Defaulting to the deployed ingress for local development if not provided.
+    const apiUrl = process.env.KOKORO_API_URL || 'http://kokoro.ether.paris';
     const endpoint = `${apiUrl}/v1/audio/speech`;
 
     try {
