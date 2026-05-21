@@ -47,7 +47,7 @@
   let currentSpeechAudio: HTMLAudioElement | null = null;
   let currentSpeechUrl: string | null = null;
 
-  const KOKORO_VOICE = 'ff_siwis';
+  const KOKORO_VOICE = 'ff_siwis'; // Try slowing down if it sounds too robotic
   const KOKORO_LANGUAGE = 'fr-fr';
 
   const assistantIntro =

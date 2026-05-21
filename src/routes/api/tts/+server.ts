@@ -6,7 +6,8 @@ export const POST: RequestHandler = async ({ request }) => {
         throw error(400, 'Invalid JSON body');
     });
 
-    const { text, voice = 'ff_siwis', language = 'fr-fr', speed = 1.0 } = body;
+    // Adjust speed to 0.9. Many find Kokoro sounds slightly more natural/less robotic when slowed down 10%
+    const { text, voice = 'ff_siwis', language = 'fr-fr', speed = 0.9 } = body;
 
     if (!text || typeof text !== 'string') {
         throw error(400, 'Text is required');
