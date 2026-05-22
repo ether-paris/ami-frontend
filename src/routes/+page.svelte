@@ -528,7 +528,7 @@
   />
 </svelte:head>
 
-<main class="flex flex-col h-screen w-full bg-[#efeae2] font-sans text-slate-900 overflow-hidden relative">
+<main class="flex flex-col h-dvh w-full bg-[#efeae2] font-sans text-slate-900 overflow-hidden relative">
   <!-- Top App Bar -->
   <header class="h-16 bg-[#f0f2f5] px-4 flex items-center justify-between border-b border-slate-200/60 z-20 shrink-0">
     <div class="flex items-center gap-3 cursor-default">
