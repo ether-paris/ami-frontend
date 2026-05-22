@@ -64,11 +64,6 @@ type OpenRouterResponse = {
 
 type GroqTranscription = {
   text?: string;
-  words?: Array<{
-    word: string;
-    start: number;
-    end: number;
-  }>;
 };
 
 type MistralTranscription = {
@@ -140,8 +135,9 @@ const transcribeAudio = async (audioBase64: string) => {
   );
   form.append("model", "whisper-large-v3-turbo");
   form.append("language", "fr");
-  form.append("response_format", "verbose_json"); // Get more detailed output
-  form.append("word_timestamps", "true"); // Include word-level timestamps
+  form.append("response_format", "json");
+  form.append("temperature", "0.0"); // Set to 0 for most literal transcription
+  form.append("suppress_tokens", "-1"); // Disable all token suppression
 
       const res = await fetch(
         "https://api.groq.com/openai/v1/audio/transcriptions",
@@ -156,10 +152,6 @@ const transcribeAudio = async (audioBase64: string) => {
 
       if (res.ok) {
         const data = (await res.json()) as GroqTranscription;
-        // If we have word-level data, reconstruct with original hesitations
-        if (data.words && data.words.length > 0) {
-          return data.words.map(w => w.word).join(' ');
-        }
         return data.text?.trim() || "";
       }
     }
