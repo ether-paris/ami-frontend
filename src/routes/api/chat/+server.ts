@@ -2,9 +2,9 @@ import { error, json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { streamFrenchAudioChunks } from "$lib/server/tts-streamer";
 import { resolveMistralVoiceId } from "$lib/server/mistral-voices";
-import { db } from '$lib/server/db/client';
-import { usage_logs } from '$lib/server/db/schema';
-import { Mistral } from '@mistralai/mistralai';
+import { db } from "$lib/server/db/client";
+import { usage_logs } from "$lib/server/db/schema";
+import { Mistral } from "@mistralai/mistralai";
 
 type ChatMessage = {
   role: "system" | "user" | "assistant";
@@ -18,44 +18,47 @@ type MistralResponse = {
 };
 
 function createPushable<T>() {
-    const queue: T[] = [];
-    let resolve: ((value: void | PromiseLike<void>) => void) | null = null;
-    let isDone = false;
+  const queue: T[] = [];
+  let resolve: ((value: void | PromiseLike<void>) => void) | null = null;
+  let isDone = false;
 
-    const push = (value: T) => {
-        queue.push(value);
-        if (resolve) resolve();
-    };
+  const push = (value: T) => {
+    queue.push(value);
+    if (resolve) resolve();
+  };
 
-    const end = () => {
-        isDone = true;
-        if (resolve) resolve();
-    };
+  const end = () => {
+    isDone = true;
+    if (resolve) resolve();
+  };
 
-    const iterable = {
-        [Symbol.asyncIterator]() {
-            return {
-                async next(): Promise<IteratorResult<T>> {
-                    while (queue.length === 0 && !isDone) {
-                        await new Promise<void>(res => { resolve = res; });
-                        resolve = null;
-                    }
-                    if (queue.length > 0) {
-                        return { value: queue.shift() as T, done: false };
-                    }
-                    return { value: undefined, done: true };
-                }
-            };
-        }
-    };
+  const iterable = {
+    [Symbol.asyncIterator]() {
+      return {
+        async next(): Promise<IteratorResult<T>> {
+          while (queue.length === 0 && !isDone) {
+            await new Promise<void>((res) => {
+              resolve = res;
+            });
+            resolve = null;
+          }
+          if (queue.length > 0) {
+            return { value: queue.shift() as T, done: false };
+          }
+          return { value: undefined, done: true };
+        },
+      };
+    },
+  };
 
-    return { push, end, iterable };
+  return { push, end, iterable };
 }
 
 type OpenRouterResponse = {
   choices?: Array<{
     message?: {
       content?: string;
+      //adding comment
     };
   }>;
 };
@@ -106,10 +109,13 @@ const normalizeMessages = (messages: unknown): ChatMessage[] => {
         typeof message.content === "string" &&
         message.content.trim().length > 0,
     )
-      .map((message) => ({
-        role: message.role,
-        content: typeof message.content === 'string' ? message.content.trim() : message.content,
-      }));
+    .map((message) => ({
+      role: message.role,
+      content:
+        typeof message.content === "string"
+          ? message.content.trim()
+          : message.content,
+    }));
 };
 
 const transcribeAudio = async (audioBase64: string) => {
@@ -167,7 +173,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   let transcript: string | null = null;
   const audioBase64 = typeof body?.audio === "string" ? body.audio : null;
-  const requestedVoiceId = typeof body?.voice_id === "string" ? body.voice_id : undefined;
+  const requestedVoiceId =
+    typeof body?.voice_id === "string" ? body.voice_id : undefined;
 
   if (audioBase64) {
     transcript = await transcribeAudio(audioBase64);
@@ -200,7 +207,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
         if (ttsEnabled) {
           const voiceClient = new Mistral({ apiKey: mistralApiKey });
-          resolvedVoiceId = await resolveMistralVoiceId(voiceClient, requestedVoiceId);
+          resolvedVoiceId = await resolveMistralVoiceId(
+            voiceClient,
+            requestedVoiceId,
+          );
         }
 
         if (transcript) {
@@ -216,7 +226,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
           });
 
           const data = response.choices?.[0]?.message?.content;
-          if (!data || typeof data !== 'string') {
+          if (!data || typeof data !== "string") {
             throw new Error("No response content from Mistral API");
           }
 
@@ -228,23 +238,28 @@ export const POST: RequestHandler = async ({ request, locals }) => {
           if (ttsEnabled) {
             try {
               const audioResponse = await client.audio.speech.complete({
-                model: 'voxtral-mini-tts-2603',
+                model: "voxtral-mini-tts-2603",
                 input: reply,
                 voiceId: resolvedVoiceId,
               });
-              if ('audioData' in audioResponse) {
-                sendEvent('audio', { data: audioResponse.audioData });
+              if ("audioData" in audioResponse) {
+                sendEvent("audio", { data: audioResponse.audioData });
               }
             } catch (err) {
               console.error("Chat TTS generation failed:", err);
             }
           }
 
-           if (lesson && !lesson.toLowerCase().includes('aucune correction nécessaire') && 
-                       !lesson.toLowerCase().includes('no corrections needed') &&
-                       !lesson.toLowerCase().includes('aucune erreur grammaticale ou de vocabulaire')) {
-             sendEvent("lesson", { text: lesson });
-           }
+          if (
+            lesson &&
+            !lesson.toLowerCase().includes("aucune correction nécessaire") &&
+            !lesson.toLowerCase().includes("no corrections needed") &&
+            !lesson
+              .toLowerCase()
+              .includes("aucune erreur grammaticale ou de vocabulaire")
+          ) {
+            sendEvent("lesson", { text: lesson });
+          }
 
           // Log usage
           if (locals.user) {
@@ -259,7 +274,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
           sendEvent("done");
         } catch (e) {
           console.error("Mistral API error:", e);
-          sendEvent("error", { message: "Sorry, I encountered an error processing your request." });
+          sendEvent("error", {
+            message: "Sorry, I encountered an error processing your request.",
+          });
         } finally {
           controller.close();
         }

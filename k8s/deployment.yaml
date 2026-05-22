@@ -91,10 +91,10 @@ spec:
                   key: GOOGLE_OAUTH_AUTH_SECRET
             - name: DOMAIN
               value: "ami.ether.paris"
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              cpu: 500m
-              memory: 512Mi
+           resources:
+             requests:
+               cpu: 100m
+               memory: 256Mi
+             limits:
+               cpu: 500m
+               memory: 512Mi
