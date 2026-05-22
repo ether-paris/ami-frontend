@@ -250,7 +250,6 @@ const transcribeAudio = async (audioBase64: string, preferredService?: string) =
     console.error("Mistral transcription failed:", e);
     throw error(502, "All transcription services failed");
   }
-    }
   } catch (e) {
     console.warn("Groq transcription failed, falling back to Mistral:", e);
   }
