@@ -306,7 +306,6 @@
     // Immediately create an empty assistant message to stream into
     const assistantMessage = createMessage('assistant', '');
     messages = [...messages, assistantMessage];
-    isThinking = false;
     await scrollToLatest();
 
     const reader = res.body?.getReader();
@@ -345,6 +344,7 @@
                 updateVoiceClip(clipId, { transcript: data.text || null, status: 'ready' });
               }
             } else if (data.type === 'chunk') {
+              isThinking = false;
               accumulatedText += data.text;
 
               // Parse lesson locally on the fly
@@ -366,6 +366,7 @@
               });
               await scrollToLatest();
             } else if (data.type === 'audio') {
+              isThinking = false;
               if (ttsEnabled) {
                 const binary = atob(data.data);
                 const bytes = new Uint8Array(binary.length);
@@ -376,8 +377,10 @@
                 enqueueAudioChunk(data.data);
               }
             } else if (data.type === 'error') {
+              isThinking = false;
               pushAssistantError(data.message);
             } else if (data.type === 'done') {
+              isThinking = false;
               if (accumulatedAudioBytes.length > 0) {
                 const totalLength = accumulatedAudioBytes.reduce((acc, val) => acc + val.length, 0);
                 const fullBytes = new Uint8Array(totalLength);
@@ -397,6 +400,7 @@
         }
       }
     }
+    isThinking = false;
   };
 
   const sendPayload = async (
@@ -414,6 +418,7 @@
       await handleResponse(res, pendingMessageId, clipId);
     } catch (e) {
       console.error(e);
+      isThinking = false;
       pushAssistantError('Network error.');
     }
   };
@@ -494,6 +499,14 @@
     }
   };
 
+  const handleRecordClick = () => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  };
+
   onDestroy(() => {
     voiceClips.forEach((clip) => URL.revokeObjectURL(clip.url));
     messages.forEach((message) => {
@@ -565,7 +578,8 @@
 
       <!-- Messages Loop -->
       {#each messages as msg (msg.id)}
-        <div class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full">
+        {#if msg.text || msg.role === 'user' || msg.pending}
+          <div class="flex {msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full">
           <div class="flex flex-col gap-1 max-w-[85%] md:max-w-[70%]">
             
             <!-- Message Bubble -->
@@ -625,6 +639,7 @@
 
           </div>
         </div>
+        {/if}
       {/each}
 
       <!-- Thinking Indicator -->
@@ -718,7 +733,7 @@
               {isRecording 
                 ? 'bg-red-500 text-white animate-pulse' 
                 : 'bg-emerald-600 text-white hover:bg-emerald-700'}"
-            on:click={isRecording ? stopRecording : startRecording}
+            on:click={handleRecordClick}
             disabled={isThinking}
           >
             {#if isRecording}
