@@ -47,6 +47,7 @@ import GlowingIcon from '$lib/components/GlowingIcon.svelte';
   let appIcon: any = null;
   let hasRecentUserInteraction = false;
   let lastUserInteractionTime = 0;
+  let preferredTranscriptionService: 'groq' | 'mistral' | 'auto' = 'auto';
   
   // Reactive auth state
   let isAuthenticated = false;
@@ -493,7 +494,12 @@ import GlowingIcon from '$lib/components/GlowingIcon.svelte';
       const res = await fetch(API_ENDPOINT, {
         method: 'POST',
         headers: headers,
-        body: JSON.stringify({ ...payload, ttsEnabled, voice_id: selectedVoiceId || undefined })
+         body: JSON.stringify({ 
+           ...payload, 
+           ttsEnabled, 
+           voice_id: selectedVoiceId || undefined,
+           transcription_service: preferredTranscriptionService !== 'auto' ? preferredTranscriptionService : undefined
+         })
       });
 
       await handleResponse(res, pendingMessageId);
@@ -718,10 +724,25 @@ import GlowingIcon from '$lib/components/GlowingIcon.svelte';
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
         {:else}
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>
-        {/if}
-      </button>
-    </div>
-  </header>
+         {/if}
+       </button>
+       
+       <!-- Transcription Service Selector (Bassem only) -->
+       {#if isAuthenticated && userInfo.email === 'bassem.bme@gmail.com'}
+       <div class="flex items-center gap-2 ml-2">
+         <select
+           bind:value={preferredTranscriptionService}
+           class="text-xs bg-white border border-slate-200 rounded px-2 py-1 h-6 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+           title="Transcription Service"
+         >
+           <option value="auto">Auto (Groq → Mistral)</option>
+           <option value="groq">Groq (Whisper)</option>
+           <option value="mistral">Mistral (Voxtral)</option>
+         </select>
+       </div>
+       {/if}
+     </div>
+   </header>
 
   <!-- Main Chat Area -->
   <div class="flex-1 overflow-y-auto px-2 sm:px-4 md:px-10 py-6" bind:this={messagesEl} style="background-image: radial-gradient(#d5d0c8 1px, transparent 1px); background-size: 24px 24px;">
