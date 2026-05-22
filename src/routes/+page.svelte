@@ -1,5 +1,8 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
+  import AppIcon from '$lib/components/AppIcon.svelte';
+  import GoogleAuth from '$lib/components/GoogleAuth.svelte';
+  import GlowingIcon from '$lib/components/GlowingIcon.svelte';
 
   type Message = {
     id: number;
@@ -545,10 +548,12 @@
   <!-- Top App Bar -->
   <header class="h-16 bg-[#f0f2f5] px-4 flex items-center justify-between border-b border-slate-200/60 z-20 shrink-0">
     <div class="flex items-center gap-3 cursor-default">
-      <div class="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-semibold text-lg overflow-hidden relative">
-        <!-- Abstract avatar for Ami -->
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-      </div>
+      <!-- Glowing App Icon - reacts to model state -->
+      <AppIcon 
+        size={40} 
+        isActive={isThinking || isRecording} 
+        notify={voiceClips.length > 0 && voiceClips.some(clip => clip.status === 'transcribing')}
+      />
       <div class="flex flex-col">
         <h1 class="text-[16px] font-semibold text-slate-800 leading-tight">Ami Tutor</h1>
         <span class="text-[13px] text-emerald-600 font-medium flex items-center gap-1.5">
@@ -560,6 +565,9 @@
 
     <!-- Right Controls -->
     <div class="flex items-center gap-2">
+      <!-- Google Auth Button -->
+      <GoogleAuth redirectTo="/" />
+      
       <!-- Voice Toggle -->
       <button 
         class="flex items-center justify-center w-10 h-10 rounded-full transition-colors {ttsEnabled ? 'text-slate-600 hover:bg-slate-200/70' : 'text-slate-400 bg-slate-200/50'}"

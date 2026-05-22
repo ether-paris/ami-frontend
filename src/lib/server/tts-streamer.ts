@@ -1,9 +1,10 @@
 import { Buffer } from 'node:buffer';
+import { Mistral } from '@mistralai/mistralai';
 
 /**
  * Highly optimized streaming middleware for converting an async token stream 
  * (LLM output) into an ordered sequence of synthesized audio chunks.
- * 
+ *
  * Features:
  * - Detects French phrase terminators without stripping essential spacing.
  * - Dispatches chunks immediately to minimize Time-To-First-Audio.
@@ -13,7 +14,7 @@ import { Buffer } from 'node:buffer';
 export async function* streamFrenchAudioChunks(
     textStream: AsyncIterable<string>,
     apiKey: string,
-    voiceName = 'fr-FR-Neural2-F'
+    voice_id = 'fr-male-accent-1'
 ): AsyncGenerator<Uint8Array> {
     // Matches French phrase terminators: ., !, ?, or : followed by space or newline
     // Uses capture groups to keep the punctuation attached to the preceding words
@@ -33,28 +34,24 @@ export async function* streamFrenchAudioChunks(
     let isTextStreamComplete = false;
     let haltAudioGeneration = false;
 
-    // Helper: Invokes the Google TTS REST API
+    // Helper: Invokes the Mistral TTS API
     const dispatchTTS = async (text: string): Promise<Uint8Array> => {
         try {
-            const res = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${apiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    input: { text },
-                    voice: { languageCode: 'fr-FR', name: voiceName },
-                    audioConfig: { audioEncoding: 'MP3' }
-                })
+            const client = new Mistral({ apiKey: apiKey });
+            const response = await client.audio.speech.complete({
+                model: 'voxtral-mini-tts-2603',
+                input: text,
+                voice_id: voice_id,
             });
             
-            if (!res.ok) {
-                console.error('[TTS Streamer] API Error:', await res.text());
-                return new Uint8Array(0);
+            if ('audioData' in response) {
+                return Buffer.from(response.audioData, 'base64');
             }
             
-            const data = await res.json();
-            return Buffer.from(data.audioContent, 'base64');
+            console.error('[TTS Streamer] Unexpected response format:', response);
+            return new Uint8Array(0);
         } catch (err) {
-            console.error('[TTS Streamer] Network Error:', err);
+            console.error('[TTS Streamer] API Error:', err);
             return new Uint8Array(0);
         }
     };
