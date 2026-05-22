@@ -41,13 +41,3 @@ spec:
                 secretKeyRef:
                   name: ami-secrets
                   key: GOOGLE_API_KEY
-            - name: ELEVENLABS_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: ami-secrets
-                  key: ELEVENLABS_API_KEY
-            - name: OPENAI_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: ami-secrets
-                  key: OPENAI_API_KEY
