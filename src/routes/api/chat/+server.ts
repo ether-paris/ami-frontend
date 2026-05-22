@@ -1,16 +1,18 @@
 import { error, json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { streamFrenchAudioChunks } from "$lib/server/tts-streamer";
+import { resolveMistralVoiceId } from "$lib/server/mistral-voices";
 import { db } from '$lib/server/db/client';
 import { usage_logs } from '$lib/server/db/schema';
 import { Mistral } from '@mistralai/mistralai';
 
 type ChatMessage = {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: string | Array<any>;
 };
 
 type MistralResponse = {
+  transcription?: string;
   petit_lecon: string;
   conversation: string;
 };
@@ -65,14 +67,15 @@ type GroqTranscription = {
 const SYSTEM_PROMPT = `You are an expert, native French tutor. Respond ONLY in French.
 
 For each user message:
-1. FIRST: Give a natural, conversational response.
-2. SECOND: If (and ONLY if) there are genuine grammatical or vocabulary errors, add a brief teaching section.
+1. FIRST: Transcribe literally what you heard the user say in the audio (or use the typed message text if no audio was sent).
+2. SECOND: Give a natural, conversational response in French.
+3. THIRD: If (and ONLY if) there are genuine grammatical or vocabulary errors, add a brief teaching section.
 
-CRITICAL RULES:
+ CRITICAL RULES:
 - Do NOT correct colloquialisms or common idioms (like "Qu'est-ce qu'il y a de beau ?", "Ca roule", etc.). They are perfectly valid French.
 - If the user's French is natural and correct, DO NOT include a teaching section.
 - ABSOLUTELY NO EMOJIS anywhere.
-- Keep your conversational response brief (1-3 sentences).
+- Keep your conversational response natural and appropriate to the context - it can be brief for simple exchanges or longer for more complex discussions.
 - Preserve user hesitations like 'euh' and address them pedagogically in the lesson block.
 
 Teaching section format (if needed):
@@ -82,8 +85,9 @@ Teaching section format (if needed):
 
 Output format:
 {
+  "transcription": "The literal transcript of the user's spoken audio (or text message if they typed). Do NOT correct any grammatical errors in this field - transcribe it exactly as they spoke it, including any hesitations like 'euh'.",
   "petit_lecon": "A concise English grammatical critique analyzing syntax errors, incorrect genders, and speech hesitations like 'euh'.",
-  "conversation": "A natural, intermediate-level continuation of the French conversation roleplay, ending with an open-ended question."
+  "conversation": "A natural, intermediate-level continuation of the French conversation roleplay. The response should be appropriate to the context - it can be a few sentences for simple exchanges or several sentences for more complex discussions. Always end with an open-ended question to encourage further conversation."
 }`;
 
 const normalizeMessages = (messages: unknown): ChatMessage[] => {
@@ -102,10 +106,10 @@ const normalizeMessages = (messages: unknown): ChatMessage[] => {
         typeof message.content === "string" &&
         message.content.trim().length > 0,
     )
-    .map((message) => ({
-      role: message.role,
-      content: message.content.trim(),
-    }));
+      .map((message) => ({
+        role: message.role,
+        content: typeof message.content === 'string' ? message.content.trim() : message.content,
+      }));
 };
 
 const transcribeAudio = async (audioBase64: string) => {
@@ -119,8 +123,8 @@ const transcribeAudio = async (audioBase64: string) => {
   const audioBytes = Buffer.from(audioBase64, "base64");
 
   const response = await client.audio.transcriptions.complete({
-    model: "voxtral-small-latest",
-    file: new Blob([audioBytes], { type: "audio/webm" }),
+    model: "voxtral-mini-latest",
+    file: new File([audioBytes], "audio.webm", { type: "audio/webm" }),
     language: "fr",
   });
 
@@ -137,17 +141,13 @@ const splitLesson = (data: MistralResponse) => {
 
 export const POST: RequestHandler = async ({ request, locals }) => {
   const mistralApiKey = process.env.MISTRAL_API_KEY;
-  
+
   if (!mistralApiKey) {
     throw error(500, "MISTRAL_API_KEY is not configured");
   }
-  
+
   // Check for user in locals (from hooks.server.ts)
   if (!locals?.user) {
-    throw error(401, "Unauthorized");
-  }
-
-  if (!event.locals.user) {
     throw error(401, "Unauthorized");
   }
 
@@ -167,7 +167,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   let transcript: string | null = null;
   const audioBase64 = typeof body?.audio === "string" ? body.audio : null;
-  const voice_id = typeof body?.voice_id === "string" ? body.voice_id : "fr-male-accent-1";
+  const requestedVoiceId = typeof body?.voice_id === "string" ? body.voice_id : undefined;
 
   if (audioBase64) {
     transcript = await transcribeAudio(audioBase64);
@@ -186,8 +186,6 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       ? messages
       : [{ role: "system" as const, content: SYSTEM_PROMPT }, ...messages];
 
-  const client = new Mistral({ apiKey: mistralApiKey });
-
   return new Response(
     new ReadableStream({
       async start(controller) {
@@ -198,19 +196,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         };
 
         const ttsEnabled = Boolean(body?.ttsEnabled);
-        const textQueue = createPushable<string>();
-        let audioTask: Promise<void> | null = null;
+        let resolvedVoiceId: string | undefined;
 
         if (ttsEnabled) {
-            audioTask = (async () => {
-                try {
-                    for await (const chunk of streamFrenchAudioChunks(textQueue.iterable, mistralApiKey, voice_id)) {
-                        sendEvent('audio', { data: Buffer.from(chunk).toString('base64') });
-                    }
-                } catch (e) {
-                    console.error('TTS streaming error:', e);
-                }
-            })();
+          const voiceClient = new Mistral({ apiKey: mistralApiKey });
+          resolvedVoiceId = await resolveMistralVoiceId(voiceClient, requestedVoiceId);
         }
 
         if (transcript) {
@@ -218,6 +208,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         }
 
         try {
+          const client = new Mistral({ apiKey: mistralApiKey });
           const response = await client.chat.complete({
             model: "voxtral-small-latest",
             messages: requestMessages,
@@ -228,16 +219,32 @@ export const POST: RequestHandler = async ({ request, locals }) => {
           if (!data || typeof data !== 'string') {
             throw new Error("No response content from Mistral API");
           }
-          
+
           const parsedData: MistralResponse = JSON.parse(data);
           const { reply, lesson } = splitLesson(parsedData);
 
           sendEvent("chunk", { text: reply });
-          if (ttsEnabled) textQueue.push(reply);
 
-          if (lesson) {
-            sendEvent("lesson", { text: lesson });
+          if (ttsEnabled) {
+            try {
+              const audioResponse = await client.audio.speech.complete({
+                model: 'voxtral-mini-tts-2603',
+                input: reply,
+                voiceId: resolvedVoiceId,
+              });
+              if ('audioData' in audioResponse) {
+                sendEvent('audio', { data: audioResponse.audioData });
+              }
+            } catch (err) {
+              console.error("Chat TTS generation failed:", err);
+            }
           }
+
+           if (lesson && !lesson.toLowerCase().includes('aucune correction nécessaire') && 
+                       !lesson.toLowerCase().includes('no corrections needed') &&
+                       !lesson.toLowerCase().includes('aucune erreur grammaticale ou de vocabulaire')) {
+             sendEvent("lesson", { text: lesson });
+           }
 
           // Log usage
           if (locals.user) {
@@ -249,17 +256,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
             });
           }
 
+          sendEvent("done");
         } catch (e) {
-          console.error('Mistral API error:', e);
-          sendEvent("error", { message: "Failed to process request" });
+          console.error("Mistral API error:", e);
+          sendEvent("error", { message: "Sorry, I encountered an error processing your request." });
+        } finally {
+          controller.close();
         }
-
-        if (audioTask) {
-            await audioTask;
-        }
-
-        sendEvent("done");
-        controller.close();
       },
     }),
     {

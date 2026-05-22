@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { db } from '$lib/server/db/client';
 import { usage_logs } from '$lib/server/db/schema';
 import { Mistral } from '@mistralai/mistralai';
+import { resolveMistralVoiceId } from '$lib/server/mistral-voices';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
     if (!locals.user) {
@@ -13,9 +14,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
         throw error(400, 'Invalid JSON body');
     });
 
-    const { text, voice_id = 'fr-male-accent-1' } = body;
+    const text = typeof body?.text === 'string' ? body.text : '';
+    const requestedVoiceId = typeof body?.voice_id === 'string' ? body.voice_id : undefined;
 
-    if (!text || typeof text !== 'string') {
+    if (!text) {
         throw error(400, 'Text is required');
     }
 
@@ -27,10 +29,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     try {
         const client = new Mistral({ apiKey: mistralApiKey });
+        const voiceId = await resolveMistralVoiceId(client, requestedVoiceId);
         const response = await client.audio.speech.complete({
             model: 'voxtral-mini-tts-2603',
             input: text,
-            voice_id: voice_id,
+            ...(voiceId ? { voiceId } : {}),
         });
 
         if (!('audioData' in response)) {

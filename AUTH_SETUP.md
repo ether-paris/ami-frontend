@@ -37,11 +37,12 @@
 Copy the Client ID from Google Cloud Console and add to your `.env` file:
 
 ```env
-VITE_GOOGLE_CLIENT_ID=your_client_id.apps.googleusercontent.com
-AUTH_SECRET=your_generated_secret_here
+VITE_GOOGLE_OAUTH_CLIENT_ID=your_client_id.apps.googleusercontent.com
+GOOGLE_OAUTH_AUTH_SECRET=your_generated_secret_here
 ```
 
 Generate a secret with:
+
 ```bash
 openssl rand -hex 32
 ```
@@ -49,6 +50,7 @@ openssl rand -hex 32
 ### Step 5: Enable Google APIs
 
 Make sure these APIs are enabled:
+
 - Google Identity Toolkit API
 - People API
 
@@ -62,12 +64,13 @@ Make sure these APIs are enabled:
 ## Troubleshooting
 
 - **Invalid redirect URI**: Make sure your redirect URIs match exactly what's in Google Cloud Console
-- **Token errors**: Ensure your AUTH_SECRET matches what's used to sign tokens
+- **Token errors**: Ensure your GOOGLE_OAUTH_AUTH_SECRET matches what's used to sign tokens
 - **CORS issues**: Make sure your domain is added to authorized domains
 
 ## Production Deployment
 
 For production, update the authorized domains and redirect URIs to use only your production domain:
+
 - `https://ami.ether.paris`
 
 Remove development URLs for security.
@@ -75,6 +78,6 @@ Remove development URLs for security.
 ## Security Notes
 
 - Never commit your `.env` file to version control
-- Keep your AUTH_SECRET secure
+- Keep your GOOGLE_OAUTH_AUTH_SECRET secure
 - Use HTTPS in production
 - Consider adding rate limiting to your auth endpoints

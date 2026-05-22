@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { onDestroy, onMount, tick } from 'svelte';
-  import AppIcon from '$lib/components/AppIcon.svelte';
-  import GoogleAuth from '$lib/components/GoogleAuth.svelte';
-  import GlowingIcon from '$lib/components/GlowingIcon.svelte';
+import { onDestroy, onMount, tick } from 'svelte';
+import AppIcon from '$lib/components/AppIcon.svelte';
+import GoogleAuth from '$lib/components/GoogleAuth.svelte';
+import GlowingIcon from '$lib/components/GlowingIcon.svelte';
 
   type Message = {
     id: number;
@@ -14,19 +14,15 @@
     audioUrl?: string;
     audioStatus?: 'idle' | 'generating' | 'ready' | 'blocked' | 'error';
     audioTriggered?: boolean;
+    userAudioUrl?: string;
+    userAudioPlaying?: boolean;
+    showTranscript?: boolean;
+    transcript?: string;
   };
 
   type ChatHistoryMessage = {
     role: 'user' | 'assistant';
     content: string;
-  };
-
-  type VoiceClip = {
-    id: number;
-    url: string;
-    createdAt: number;
-    transcript: string | null;
-    status: 'recorded' | 'transcribing' | 'ready';
   };
 
   const API_ENDPOINT = '/api/chat';
@@ -39,10 +35,7 @@
   let mediaRecorder: MediaRecorder | null = null;
   let audioChunks: Blob[] = [];
   let messagesEl: HTMLDivElement | null = null;
-  let clipsEl: HTMLDivElement | null = null;
-  let voiceClips: VoiceClip[] = [];
-  let nextClipId = 1;
-  let activeClipId: number | null = null;
+
 
   let ttsEnabled = true;
   let ttsReady = true;
@@ -50,6 +43,43 @@
   let ttsError: string | null = null;
   let currentSpeechAudio: HTMLAudioElement | null = null;
   let currentSpeechUrl: string | null = null;
+  let isAppSpeaking = false;
+  let appIcon: any = null;
+  
+  // Reactive auth state
+  let isAuthenticated = false;
+  let userInfo = { name: '', picture: '' };
+  let selectedVoiceId = '';
+
+  // Check auth state reactively
+  function checkAuthState() {
+    if (typeof window !== 'undefined') {
+      const token = localStorage.getItem('auth_token');
+      const storedUserInfo = localStorage.getItem('user_info');
+      
+      isAuthenticated = !!token;
+      
+      if (storedUserInfo) {
+        try {
+          userInfo = JSON.parse(storedUserInfo);
+        } catch (e) {
+          console.error('Error parsing user info:', e);
+          userInfo = { name: '', picture: '' };
+        }
+      }
+
+      selectedVoiceId = localStorage.getItem('selected_voice_id') || '';
+    }
+  }
+  
+  // Set up storage event listener for cross-tab sync
+  if (typeof window !== 'undefined') {
+    window.addEventListener('storage', (event) => {
+      if (event.key === 'auth_token' || event.key === 'user_info' || event.key === 'selected_voice_id') {
+        checkAuthState();
+      }
+    });
+  }
 
   const assistantIntro =
     'Your French tutor listens, replies out loud, and keeps corrections separate so the conversation stays natural.';
@@ -81,12 +111,7 @@
     }
   };
 
-  const scrollClipsToLatest = async () => {
-    await tick();
-    if (clipsEl) {
-        clipsEl.scrollTo({ top: clipsEl.scrollHeight, behavior: 'smooth' });
-    }
-  };
+
 
   const stopSpeech = () => {
     currentSpeechAudio?.pause();
@@ -96,13 +121,13 @@
     audioQueue = [];
     isPlayingAudioQueue = false;
 
-    if (activeClipId !== null) {
-      const activeAudio = document.getElementById(`clip-audio-${activeClipId}`) as HTMLAudioElement | null;
-      if (activeAudio) {
-        activeAudio.pause();
-        activeAudio.currentTime = 0;
+    if (currentUserAudio) {
+      currentUserAudio.pause();
+      if (playingUserAudioMessageId !== null) {
+        updateMessageUserAudioPlaying(playingUserAudioMessageId, false);
       }
-      activeClipId = null;
+      currentUserAudio = null;
+      playingUserAudioMessageId = null;
     }
   };
 
@@ -117,17 +142,30 @@
     isPlayingAudioQueue = true;
     const url = audioQueue.shift()!;
     
-    stopSpeech();
+    currentSpeechAudio?.pause();
+    currentSpeechAudio = null;
+    currentSpeechUrl = null;
+
     currentSpeechUrl = url;
     currentSpeechAudio = new Audio(url);
     
+    currentSpeechAudio.onplay = () => {
+      isAppSpeaking = true;
+      // Connect this audio element to the visualizer
+      if (appIcon && typeof appIcon.connectAudioElement === 'function') {
+        appIcon.connectAudioElement(currentSpeechAudio);
+      }
+    };
+    
     currentSpeechAudio.onended = () => {
       URL.revokeObjectURL(url);
+      isAppSpeaking = false;
       playNextInQueue();
     };
-
+    
     currentSpeechAudio.onerror = () => {
       console.error('Audio playback error in queue');
+      isAppSpeaking = false;
       playNextInQueue();
     };
 
@@ -162,12 +200,20 @@
   };
 
   const generateSpeechUrl = async (text: string) => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    
+    // Add authorization header if user is authenticated
+    if (isAuthenticated && typeof window !== 'undefined') {
+      const token = localStorage.getItem('auth_token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+
     const res = await fetch('/api/tts', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ text })
+      headers: headers,
+      body: JSON.stringify({ text, voice_id: selectedVoiceId || undefined })
     });
 
     if (!res.ok) {
@@ -182,6 +228,23 @@
     stopSpeech();
     currentSpeechUrl = url;
     currentSpeechAudio = new Audio(url);
+    
+    currentSpeechAudio.onplay = () => {
+      isAppSpeaking = true;
+      // Connect this audio element to the visualizer
+      if (appIcon && typeof appIcon.connectAudioElement === 'function') {
+        appIcon.connectAudioElement(currentSpeechAudio);
+      }
+    };
+    
+    currentSpeechAudio.onended = () => {
+      isAppSpeaking = false;
+    };
+    
+    currentSpeechAudio.onerror = () => {
+      isAppSpeaking = false;
+    };
+    
     await currentSpeechAudio.play();
   };
 
@@ -231,75 +294,75 @@
     scrollToLatest();
   };
 
-  const addVoiceClip = (audioBlob: Blob) => {
-    const url = URL.createObjectURL(audioBlob);
-    const clip: VoiceClip = {
-      id: nextClipId++,
-      url,
-      createdAt: Date.now(),
-      transcript: null,
-      status: 'recorded'
-    };
+  let currentUserAudio: HTMLAudioElement | null = null;
+  let playingUserAudioMessageId: number | null = null;
 
-    voiceClips = [clip, ...voiceClips];
-    void scrollClipsToLatest();
-
-    return clip;
-  };
-
-  const updateVoiceClip = (clipId: number, patch: Partial<Omit<VoiceClip, 'id' | 'url'>>) => {
-    voiceClips = voiceClips.map((clip) =>
-      clip.id === clipId
-        ? {
-            ...clip,
-            ...patch
-          }
-        : clip
-    );
-  };
-
-  const playClip = (clipId: number) => {
-    const clip = voiceClips.find((item) => item.id === clipId);
-    if (!clip) return;
-
-    if (activeClipId === clipId) {
-      const currentAudio = document.getElementById(`clip-audio-${clipId}`) as HTMLAudioElement | null;
-      if (currentAudio) {
-        currentAudio.pause();
-        currentAudio.currentTime = 0;
+  const playUserAudio = (messageId: number, url: string) => {
+    if (playingUserAudioMessageId === messageId && currentUserAudio) {
+      if (currentUserAudio.paused) {
+        void currentUserAudio.play();
+        updateMessageUserAudioPlaying(messageId, true);
+      } else {
+        currentUserAudio.pause();
+        updateMessageUserAudioPlaying(messageId, false);
       }
-      activeClipId = null;
       return;
     }
 
-    // Stop assistant speech or other active clips
-    stopSpeech();
-
-    activeClipId = clipId;
-    const currentAudio = document.getElementById(`clip-audio-${clipId}`) as HTMLAudioElement | null;
-    if (currentAudio) {
-      currentAudio.onended = () => {
-        activeClipId = null;
-      };
-      currentAudio.play().catch(() => {
-        activeClipId = null;
-      });
-    } else {
-      activeClipId = null;
+    if (currentUserAudio) {
+      currentUserAudio.pause();
+      if (playingUserAudioMessageId !== null) {
+        updateMessageUserAudioPlaying(playingUserAudioMessageId, false);
+      }
     }
+
+    stopSpeech(); // Stop any tutor speech
+
+    currentUserAudio = new Audio(url);
+    playingUserAudioMessageId = messageId;
+    updateMessageUserAudioPlaying(messageId, true);
+
+    currentUserAudio.onended = () => {
+      updateMessageUserAudioPlaying(messageId, false);
+      currentUserAudio = null;
+      playingUserAudioMessageId = null;
+    };
+
+    currentUserAudio.onerror = () => {
+      console.error('User audio playback error');
+      updateMessageUserAudioPlaying(messageId, false);
+      currentUserAudio = null;
+      playingUserAudioMessageId = null;
+    };
+
+    void currentUserAudio.play();
   };
 
-  const handleResponse = async (res: Response, pendingMessageId?: number, clipId?: number) => {
+  const updateMessageUserAudioPlaying = (messageId: number, playing: boolean) => {
+    messages = messages.map((m) => m.id === messageId ? { ...m, userAudioPlaying: playing } : m);
+  };
+
+   const handleResponse = async (res: Response, pendingMessageId?: number) => {
     if (!res.ok) {
       const errorText = await res.text().catch(() => '');
-      const message = errorText ? `Error communicating with backend: ${errorText}` : 'Error communicating with backend.';
+      let message = errorText ? `Error communicating with backend: ${errorText}` : 'Error communicating with backend.';
+
+      // Handle specific error cases
+      if (res.status === 401) {
+        message = 'Please log in to continue this conversation.';
+        
+        // If user was logged in but got 401, their session might be expired
+        if (isAuthenticated && typeof window !== 'undefined') {
+          const token = localStorage.getItem('auth_token');
+          if (token) {
+            // Token might be expired, suggest re-login
+            message = 'Your session has expired. Please log in again.';
+          }
+        }
+      }
 
       if (pendingMessageId) {
         messages = messages.filter((message) => message.id !== pendingMessageId);
-      }
-
-      if (clipId) {
-        updateVoiceClip(clipId, { status: 'recorded' });
       }
 
       pushAssistantError(message);
@@ -337,33 +400,20 @@
                     ? {
                         ...message,
                         text: data.text || 'Voice note sent',
+                        transcript: data.text || 'Voice note sent',
                         includeInContext: Boolean(data.text),
                         pending: false
                       }
                     : message
                 );
               }
-              if (clipId) {
-                updateVoiceClip(clipId, { transcript: data.text || null, status: 'ready' });
-              }
             } else if (data.type === 'chunk') {
               isThinking = false;
               accumulatedText += data.text;
 
-              // Parse lesson locally on the fly
-              const cleanText = accumulatedText.replace(/^```(?:json)?/i, '').replace(/```$/i, '');
-              const lessonMatch = cleanText.match(/petite le[c\u00e7]on/i);
-              let reply = cleanText;
-              let lesson: string | undefined = undefined;
-
-              if (lessonMatch && lessonMatch.index !== undefined) {
-                reply = cleanText.slice(0, lessonMatch.index).trimEnd();
-                lesson = cleanText.slice(lessonMatch.index).trimEnd();
-              }
-
               messages = messages.map((message) => {
                 if (message.id === assistantMessage.id) {
-                  return { ...message, text: reply, lesson };
+                  return { ...message, text: accumulatedText };
                 }
                 return message;
               });
@@ -379,6 +429,14 @@
                 accumulatedAudioBytes.push(bytes);
                 enqueueAudioChunk(data.data);
               }
+            } else if (data.type === 'lesson') {
+              messages = messages.map((message) => {
+                if (message.id === assistantMessage.id) {
+                  return { ...message, lesson: data.text };
+                }
+                return message;
+              });
+              await scrollToLatest();
             } else if (data.type === 'error') {
               isThinking = false;
               pushAssistantError(data.message);
@@ -408,17 +466,26 @@
 
   const sendPayload = async (
     payload: { message?: string; audio?: string; audioMimeType?: string; messages: ChatHistoryMessage[]; ttsEnabled?: boolean },
-    pendingMessageId?: number,
-    clipId?: number
+    pendingMessageId?: number
   ) => {
     try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      
+      // Add authorization header if user is authenticated
+      if (isAuthenticated && typeof window !== 'undefined') {
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      }
+
       const res = await fetch(API_ENDPOINT, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, ttsEnabled })
+        headers: headers,
+        body: JSON.stringify({ ...payload, ttsEnabled, voice_id: selectedVoiceId || undefined })
       });
 
-      await handleResponse(res, pendingMessageId, clipId);
+      await handleResponse(res, pendingMessageId);
     } catch (e) {
       console.error(e);
       isThinking = false;
@@ -441,15 +508,16 @@
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType =
-        MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-          ? 'audio/webm;codecs=opus'
-          : MediaRecorder.isTypeSupported('audio/mp4')
-            ? 'audio/mp4'
-            : '';
-      mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      audioChunks = [];
+       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+       const mimeType =
+         MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+           ? 'audio/webm;codecs=opus'
+           : MediaRecorder.isTypeSupported('audio/mp4')
+             ? 'audio/mp4'
+             : '';
+       mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+       audioChunks = [];
+
 
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -460,14 +528,17 @@
       mediaRecorder.onstop = async () => {
         const audioMimeType = mediaRecorder?.mimeType || mimeType || audioChunks[0]?.type || 'audio/webm';
         const audioBlob = new Blob(audioChunks, { type: audioMimeType });
-        const clip = addVoiceClip(audioBlob);
-        updateVoiceClip(clip.id, { status: 'transcribing' });
+        const userAudioUrl = URL.createObjectURL(audioBlob);
 
         const reader = new FileReader();
-        const pendingAudioMessage = createMessage('user', 'Transcribing voice note...', {
+        const pendingAudioMessage = createMessage('user', '', {
           includeInContext: false,
           pending: true
         });
+        pendingAudioMessage.userAudioUrl = userAudioUrl;
+        pendingAudioMessage.transcript = '';
+        pendingAudioMessage.showTranscript = false;
+
         messages = [...messages, pendingAudioMessage];
         isThinking = true;
         await scrollToLatest();
@@ -477,11 +548,10 @@
           const base64data = reader.result as string;
           const base64Audio = base64data.split(',')[1];
 
-          await sendPayload(
-            { audio: base64Audio, audioMimeType, messages: toChatHistory() },
-            pendingAudioMessage.id,
-            clip.id
-          );
+           await sendPayload(
+             { audio: base64Audio, audioMimeType, messages: toChatHistory(messages) },
+             pendingAudioMessage.id
+           );
         };
 
         stream.getTracks().forEach((track) => track.stop());
@@ -500,6 +570,8 @@
       mediaRecorder.stop();
       isRecording = false;
     }
+    
+
   };
 
   const handleRecordClick = () => {
@@ -511,14 +583,17 @@
   };
 
   onDestroy(() => {
-    voiceClips.forEach((clip) => URL.revokeObjectURL(clip.url));
     messages.forEach((message) => {
       if (message.audioUrl) URL.revokeObjectURL(message.audioUrl);
+      if (message.userAudioUrl) URL.revokeObjectURL(message.userAudioUrl);
     });
     stopSpeech();
   });
 
   onMount(() => {
+    // Check initial auth state
+    checkAuthState();
+    
     // TTS is now handled by the backend server
     const handleViewportResize = () => {
       void scrollToLatest();
@@ -550,9 +625,10 @@
     <div class="flex items-center gap-3 cursor-default">
       <!-- Glowing App Icon - reacts to model state -->
       <AppIcon 
+        bind:this={appIcon}
         size={40} 
         isActive={isThinking || isRecording} 
-        notify={voiceClips.length > 0 && voiceClips.some(clip => clip.status === 'transcribing')}
+        isSpeaking={isAppSpeaking}
       />
       <div class="flex flex-col">
         <h1 class="text-[16px] font-semibold text-slate-800 leading-tight">Ami Tutor</h1>
@@ -565,8 +641,22 @@
 
     <!-- Right Controls -->
     <div class="flex items-center gap-2">
-      <!-- Google Auth Button -->
-      <GoogleAuth redirectTo="/" />
+       <!-- User Profile Picture (when logged in) - links to user stats page -->
+       {#if isAuthenticated}
+         <a href="/user" class="flex items-center gap-2 hover:opacity-80 transition-opacity">
+           <div class="w-10 h-10 rounded-full overflow-hidden border-2 border-white shadow-sm">
+             <img
+               src={userInfo.picture || 'https://www.gravatar.com/avatar/default?s=200&d=mp'}
+               alt="User avatar"
+               class="w-full h-full object-cover"
+               referrerpolicy="no-referrer"
+             />
+           </div>
+         </a>
+       {:else}
+         <!-- Google Auth Button (when not logged in) -->
+         <GoogleAuth redirectTo="/" />
+       {/if}
       
       <!-- Voice Toggle -->
       <button 
@@ -621,7 +711,74 @@
                 </svg>
               {/if}
 
-              <p class="whitespace-pre-wrap leading-snug">{msg.text}</p>
+              {#if msg.userAudioUrl}
+                <!-- WhatsApp-like Audio Player -->
+                <div class="flex items-center gap-3 py-1">
+                  <!-- Play/Pause Button -->
+                  <button
+                    on:click={() => playUserAudio(msg.id, msg.userAudioUrl)}
+                    class="w-9 h-9 rounded-full bg-emerald-500 hover:bg-emerald-600 flex items-center justify-center text-white shadow-sm transition-colors cursor-pointer shrink-0"
+                  >
+                    {#if msg.userAudioPlaying}
+                      <!-- Pause Icon -->
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="4" height="16" rx="1"></rect><rect x="16" y="4" width="4" height="16" rx="1"></rect></svg>
+                    {:else}
+                      <!-- Play Icon -->
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    {/if}
+                  </button>
+
+                  <!-- Waveform / Progress Indicator -->
+                  <div class="flex-1 flex flex-col gap-1 min-w-[120px] sm:min-w-[180px]">
+                    <div class="flex items-center gap-1">
+                      <!-- Simulated waveform blocks -->
+                      <div class="h-5 flex items-center gap-0.5 opacity-60">
+                        <div class="w-0.5 h-3 bg-slate-800 rounded-full"></div>
+                        <div class="w-0.5 h-4 bg-slate-800 rounded-full"></div>
+                        <div class="w-0.5 h-2 bg-slate-800 rounded-full"></div>
+                        <div class="w-0.5 h-5 bg-slate-800 rounded-full"></div>
+                        <div class="w-0.5 h-3 bg-slate-800 rounded-full"></div>
+                        <div class="w-0.5 h-4 bg-slate-800 rounded-full"></div>
+                        <div class="w-0.5 h-2 bg-slate-800 rounded-full"></div>
+                        <div class="w-0.5 h-4 bg-slate-800 rounded-full"></div>
+                        <div class="w-0.5 h-3 bg-slate-800 rounded-full"></div>
+                        <div class="w-0.5 h-5 bg-slate-800 rounded-full"></div>
+                        <div class="w-0.5 h-2 bg-slate-800 rounded-full"></div>
+                        <div class="w-0.5 h-4 bg-slate-800 rounded-full"></div>
+                        <div class="w-0.5 h-3 bg-slate-800 rounded-full"></div>
+                        <div class="w-0.5 h-1 bg-slate-800 rounded-full"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Transcribe Toggle Button -->
+                  <button
+                    on:click={() => { msg.showTranscript = !msg.showTranscript; }}
+                    class="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-800 border border-emerald-500/15 shadow-sm transition-all cursor-pointer shrink-0"
+                  >
+                    {msg.showTranscript ? 'Hide Text' : 'Transcribe'}
+                  </button>
+                </div>
+
+                <!-- Expanded Transcript text -->
+                {#if msg.showTranscript}
+                  <div class="mt-2.5 pt-2.5 border-t border-emerald-500/10 text-[13.5px] text-slate-700 italic font-normal leading-relaxed">
+                    {#if msg.pending}
+                      <span class="flex items-center gap-1.5 text-slate-500">
+                        <svg class="animate-spin h-3.5 w-3.5 text-emerald-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Transcribing voice...
+                      </span>
+                    {:else}
+                      "{msg.transcript || 'Voice note sent'}"
+                    {/if}
+                  </div>
+                {/if}
+              {:else}
+                <p class="whitespace-pre-wrap leading-snug">{msg.text}</p>
+              {/if}
               
               <!-- Voice Button for Assistant -->
               {#if msg.role === 'assistant' && msg.text.trim()}
@@ -679,36 +836,7 @@
     </div>
   </div>
 
-  <!-- Clips/History Drawer (Sliding up above input when there are clips) -->
-  {#if voiceClips.length > 0}
-    <div class="bg-[#f0f2f5] border-t border-slate-200/80 px-4 py-2 shrink-0 flex items-center gap-3 overflow-x-auto" bind:this={clipsEl}>
-      <span class="text-xs font-semibold text-slate-500 uppercase tracking-widest shrink-0">Clips</span>
-      {#each voiceClips as clip}
-        <button 
-          class="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-full shadow-sm shrink-0 hover:bg-slate-50 transition-colors {activeClipId === clip.id ? 'ring-2 ring-emerald-500/50' : ''}"
-          on:click={() => playClip(clip.id)}
-        >
-          <audio id="clip-audio-{clip.id}" src={clip.url} class="hidden"></audio>
-          <div class="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-emerald-600">
-            {#if activeClipId === clip.id}
-               <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
-            {:else}
-               <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-            {/if}
-          </div>
-          <span class="text-[12px] font-medium text-slate-600 max-w-[100px] truncate">
-            {#if clip.status === 'transcribing'}
-              Translating...
-            {:else if clip.transcript}
-              {clip.transcript}
-            {:else}
-              Audio
-            {/if}
-          </span>
-        </button>
-      {/each}
-    </div>
-  {/if}
+
 
   <!-- Bottom Input Bar -->
   <footer class="bg-[#f0f2f5] px-2 sm:px-4 py-3 border-t border-slate-200/60 shrink-0">

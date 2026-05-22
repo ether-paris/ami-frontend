@@ -41,3 +41,23 @@ spec:
                 secretKeyRef:
                   name: ami-secrets
                   key: GOOGLE_API_KEY
+            - name: MISTRAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ami-secrets
+                  key: MISTRAL_API_KEY
+            - name: VITE_GOOGLE_OAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: ami-secrets
+                  key: VITE_GOOGLE_OAUTH_CLIENT_ID
+            - name: GOOGLE_OAUTH_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ami-secrets
+                  key: GOOGLE_OAUTH_API_KEY
+            - name: GOOGLE_OAUTH_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ami-secrets
+                  key: GOOGLE_OAUTH_AUTH_SECRET

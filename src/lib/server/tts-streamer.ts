@@ -14,7 +14,7 @@ import { Mistral } from '@mistralai/mistralai';
 export async function* streamFrenchAudioChunks(
     textStream: AsyncIterable<string>,
     apiKey: string,
-    voice_id = 'fr-male-accent-1'
+    voiceId?: string
 ): AsyncGenerator<Uint8Array> {
     // Matches French phrase terminators: ., !, ?, or : followed by space or newline
     // Uses capture groups to keep the punctuation attached to the preceding words
@@ -41,7 +41,7 @@ export async function* streamFrenchAudioChunks(
             const response = await client.audio.speech.complete({
                 model: 'voxtral-mini-tts-2603',
                 input: text,
-                voice_id: voice_id,
+                ...(voiceId ? { voiceId } : {}),
             });
             
             if ('audioData' in response) {

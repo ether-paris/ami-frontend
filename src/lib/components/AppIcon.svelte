@@ -1,22 +1,32 @@
 <script lang="ts">
   import GlowingIcon from './GlowingIcon.svelte';
+  import AudioVisualizer from './AudioVisualizer.svelte';
+  import { createEventDispatcher } from 'svelte';
   
   export let isActive: boolean = false;
   export let size: number = 32;
-  export let notify: boolean = false;
-
+  export let isSpeaking: boolean = false;
+  
   // Animation states
   let isGlowing = false;
-
+  let visualizer: any = null;
+  
   // Sync state
-  $: isGlowing = isActive || notify;
-
+  $: isGlowing = isActive;
+  
   function handleClick() {
     // Add a quick feedback effect on click
     const btn = document.querySelector('.orb-click-container');
     if (btn) {
       btn.classList.add('clicked');
       setTimeout(() => btn.classList.remove('clicked'), 200);
+    }
+  }
+  
+  // Expose method to connect audio elements to visualizer
+  export function connectAudioElement(element: HTMLAudioElement) {
+    if (visualizer && typeof visualizer.connectAudio === 'function') {
+      visualizer.connectAudio(element);
     }
   }
 </script>
@@ -28,19 +38,27 @@
   aria-label="App icon"
   tabindex="0"
 >
-  <!-- Notification dot -->
-  {#if notify}
-    <span class="absolute -top-0.5 -right-0.5 w-3 h-3 bg-red-500 rounded-full border-2 border-white dark:border-gray-800 z-20"></span>
-  {/if}
+
   
   <!-- Smooth high-fidelity glassy/matte orb -->
   <span class="relative z-10 flex items-center justify-center">
-    <GlowingIcon
-      size={size}
-      scheme="matte-lavender"
-      pulse={isGlowing && !isActive}
-      active={isActive}
-    />
+    {#if isSpeaking}
+      <AudioVisualizer bind:this={visualizer} isActive={isSpeaking} size={size}>
+        <GlowingIcon
+          size={size}
+          scheme="matte-lavender"
+          pulse={false}
+          active={true}
+        />
+      </AudioVisualizer>
+    {:else}
+      <GlowingIcon
+        size={size}
+        scheme="matte-lavender"
+        pulse={isGlowing && !isActive}
+        active={isActive}
+      />
+    {/if}
   </span>
 </button>
 
