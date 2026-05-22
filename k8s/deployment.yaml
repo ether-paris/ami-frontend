@@ -17,15 +17,32 @@ spec:
     spec:
       nodeSelector:
         role: worker
-      imagePullSecrets:
-        - name: ghcr-secret
-      containers:
-        - name: frontend
-          image: ghcr.io/ether-paris/ami-frontend:latest
-          imagePullPolicy: Always
-          ports:
-            - containerPort: 80
-          env:
+       imagePullSecrets:
+         - name: ghcr-secret
+       volumes:
+         - name: data-volume
+           persistentVolumeClaim:
+             claimName: ami-data-pvc
+       containers:
+         - name: frontend
+           image: ghcr.io/ether-paris/ami-frontend:latest
+           imagePullPolicy: Always
+           ports:
+             - containerPort: 80
+           volumeMounts:
+             - name: data-volume
+               mountPath: /root/data
+           lifecycle:
+             postStart:
+               exec:
+                 command: ["sh", "-c", "npm run migrate || echo 'Migration completed or already up-to-date'"]
+           env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "80"
+            - name: HOST
+              value: "0.0.0.0"
             - name: GROQ_API_KEY
               valueFrom:
                 secretKeyRef:
@@ -61,3 +78,10 @@ spec:
                 secretKeyRef:
                   name: ami-secrets
                   key: GOOGLE_OAUTH_AUTH_SECRET
+            - name: AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ami-secrets
+                  key: AUTH_SECRET
+            - name: DOMAIN
+              value: "ami.ether.paris"
