@@ -121,13 +121,13 @@ const normalizeMessages = (messages: unknown): ChatMessage[] => {
 };
 
 const transcribeAudio = async (audioBase64: string, preferredService?: string) => {
-  // Special handling for Bassem SABBAGH - allow service selection
-  const isBassem = locals?.user?.name === "Bassem SABBAGH" || locals?.user?.email === "bassem@revenuemonster.my";
+  // Special handling for Bassem SABBAGH - allow service selection (email only)
+  const isBassem = locals?.user?.email === "bassem.bme@gmail.com";
   const forceService = isBassem && preferredService ? preferredService : null;
 
   // Try the forced service first if specified (for Bassem)
   if (forceService) {
-    if (forceService === "groq" || forceService === "whisper") {
+    if (forceService === "groq") {
       try {
         const groqApiKey = process.env.GROQ_API_KEY;
         if (groqApiKey) {
@@ -157,14 +157,14 @@ const transcribeAudio = async (audioBase64: string, preferredService?: string) =
 
           if (res.ok) {
             const data = (await res.json()) as GroqTranscription;
-            console.log(`[Bassem] Using forced Groq/Whisper transcription`);
+            console.log(`[Bassem] Using forced Groq transcription`);
             return data.text?.trim() || "";
           }
         }
       } catch (e) {
         console.warn("Forced Groq transcription failed:", e);
       }
-    } else if (forceService === "mistral" || forceService === "voxtral") {
+    } else if (forceService === "mistral") {
       try {
         const mistralApiKey = process.env.MISTRAL_API_KEY;
         if (mistralApiKey) {
@@ -179,7 +179,7 @@ const transcribeAudio = async (audioBase64: string, preferredService?: string) =
             timestampGranularities: ["word"],
           });
 
-          console.log(`[Bassem] Using forced Mistral/Voxtral transcription`);
+          console.log(`[Bassem] Using forced Mistral transcription`);
           return response.text?.trim() || "";
         }
       } catch (e) {
