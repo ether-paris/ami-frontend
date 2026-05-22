@@ -14,9 +14,9 @@ spec:
     metadata:
       labels:
         app: ami-frontend
-    spec:
-      nodeSelector:
-        role: worker
+     spec:
+       nodeSelector:
+         role: worker
        imagePullSecrets:
          - name: ghcr-secret
        volumes:
