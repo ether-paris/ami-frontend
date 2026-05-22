@@ -84,11 +84,11 @@ spec:
                 secretKeyRef:
                   name: ami-secrets
                   key: GOOGLE_OAUTH_AUTH_SECRET
-            - name: AUTH_SECRET
+            - name: GOOGLE_OAUTH_AUTH_SECRET
               valueFrom:
                 secretKeyRef:
                   name: ami-secrets
-                  key: AUTH_SECRET
+                  key: GOOGLE_OAUTH_AUTH_SECRET
             - name: DOMAIN
               value: "ami.ether.paris"
           resources:
