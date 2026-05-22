@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  namespace: ether
   name: ami-data-pvc
+  namespace: ether
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: local-path
+  storageClassName: standard
   resources:
     requests:
       storage: 1Gi
