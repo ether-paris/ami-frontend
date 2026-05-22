@@ -2,13 +2,12 @@
 FROM node:20-slim AS builder
 WORKDIR /app
 COPY package*.json ./
-COPY . .
 # Install bun first since package.json uses bun scripts
 RUN npm install -g bun
-# Skip prepare script during build (migrations should run at runtime)
-RUN npm ci --ignore-scripts
-# Fix missing optional dependencies issue on ARM64 by installing them explicitly
-RUN npm install --no-audit --no-fund
+# Install dependencies (ci automatically skips optional deps which is fine for production)
+RUN npm ci
+COPY . .
+# Build the application
 RUN npm run build
 
 # runtime
