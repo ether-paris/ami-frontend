@@ -10,8 +10,7 @@
     "start": "bun build/index.js",
     "check": "svelte-kit sync && tsc --noEmit",
     "migrate": "bun run scripts/migrate.ts",
-    "setup": "bun run scripts/setup.ts",
-    "prepare": "bun run scripts/migrate.ts"
+    "setup": "bun run scripts/setup.ts"
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^3.0.0",
