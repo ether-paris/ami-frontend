@@ -52,3 +52,14 @@ jobs:
           platforms: linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Set up Kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Trigger Rollout Restart
+        run: |
+          kubectl rollout restart deployment ami-frontend -n ether
+          kubectl rollout status deployment ami-frontend -n ether
