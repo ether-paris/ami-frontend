@@ -28,14 +28,20 @@ spec:
            image: ghcr.io/ether-paris/ami-frontend:latest
            imagePullPolicy: Always
            ports:
-             - containerPort: 80
-           volumeMounts:
-             - name: data-volume
-               mountPath: /root/data
-           lifecycle:
-             postStart:
-               exec:
-                 command: ["sh", "-c", "npm run migrate || echo 'Migration completed or already up-to-date'"]
+             - name: http
+               containerPort: 80
+           readinessProbe:
+             httpGet:
+               path: /
+               port: http
+             initialDelaySeconds: 10
+             periodSeconds: 10
+           livenessProbe:
+             httpGet:
+               path: /
+               port: http
+             initialDelaySeconds: 30
+             periodSeconds: 30
            env:
             - name: NODE_ENV
               value: "production"
@@ -85,3 +91,10 @@ spec:
                   key: AUTH_SECRET
             - name: DOMAIN
               value: "ami.ether.paris"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
