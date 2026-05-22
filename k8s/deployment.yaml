@@ -11,38 +11,38 @@ spec:
     matchLabels:
       app: ami-frontend
   template:
-     metadata:
-       labels:
-         app: ami-frontend
-     spec:
-       nodeSelector:
-         role: worker
-       imagePullSecrets:
-         - name: ghcr-secret
-       volumes:
-         - name: data-volume
-           persistentVolumeClaim:
-             claimName: ami-data-pvc
-       containers:
-         - name: frontend
-           image: ghcr.io/ether-paris/ami-frontend:latest
-           imagePullPolicy: Always
-           ports:
-             - name: http
-               containerPort: 80
-           readinessProbe:
-             httpGet:
-               path: /
-               port: http
-             initialDelaySeconds: 10
-             periodSeconds: 10
-           livenessProbe:
-             httpGet:
-               path: /
-               port: http
-             initialDelaySeconds: 30
-             periodSeconds: 30
-           env:
+    metadata:
+      labels:
+        app: ami-frontend
+    spec:
+      nodeSelector:
+        role: worker
+      imagePullSecrets:
+        - name: ghcr-secret
+      volumes:
+        - name: data-volume
+          persistentVolumeClaim:
+            claimName: ami-data-pvc
+      containers:
+        - name: frontend
+          image: ghcr.io/ether-paris/ami-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          env:
             - name: NODE_ENV
               value: "production"
             - name: PORT
@@ -84,17 +84,15 @@ spec:
                 secretKeyRef:
                   name: ami-secrets
                   key: GOOGLE_OAUTH_AUTH_SECRET
-            - name: GOOGLE_OAUTH_AUTH_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: ami-secrets
-                  key: GOOGLE_OAUTH_AUTH_SECRET
             - name: DOMAIN
               value: "ami.ether.paris"
-           resources:
-             requests:
-               cpu: 100m
-               memory: 256Mi
-             limits:
-               cpu: 500m
-               memory: 512Mi
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: data-volume
+              mountPath: /data
