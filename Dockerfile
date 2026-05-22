@@ -4,13 +4,14 @@ WORKDIR /app
 
     # Install dependencies using bun (following Ether pattern)
     COPY package.json bun.lock ./
-    RUN bun install --frozen-lockfile
+    RUN bun install
 
     # Copy source code
     COPY . .
 
-# Build the application
-RUN bun run build
+    # Build the application (use temporary DB path)
+    ENV DB_PATH=/tmp/tutor.db
+    RUN bun run build
 
 # Production image (following Ether pattern)
 FROM oven/bun:1 as runner
