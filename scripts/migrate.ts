@@ -5,7 +5,9 @@ import * as schema from '../src/lib/server/db/schema';
 import { join } from 'path';
 
 // Create or connect to the database
-const sqlite = new Database(`${process.env.HOME}/data/tutor.db`);
+// Use /tmp for build-time migrations since HOME may not be available in Docker
+const dbPath = process.env.HOME ? `${process.env.HOME}/data/tutor.db` : '/tmp/tutor-build.db';
+const sqlite = new Database(dbPath);
 const db = drizzle(sqlite, { schema });
 
 console.log('Running database migrations...');
