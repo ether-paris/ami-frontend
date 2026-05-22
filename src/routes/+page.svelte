@@ -45,6 +45,8 @@ import GlowingIcon from '$lib/components/GlowingIcon.svelte';
   let currentSpeechUrl: string | null = null;
   let isAppSpeaking = false;
   let appIcon: any = null;
+  let hasRecentUserInteraction = false;
+  let lastUserInteractionTime = 0;
   
   // Reactive auth state
   let isAuthenticated = false;
@@ -274,12 +276,15 @@ import GlowingIcon from '$lib/components/GlowingIcon.svelte';
         return;
       }
 
-      try {
-        await playSpeechUrl(url);
-      } catch (err) {
-        console.warn('Browser blocked automatic TTS playback', err);
-        updateMessageAudio(messageId, { audioUrl: url, audioStatus: 'blocked' });
-      }
+       try {
+         await playSpeechUrl(url);
+       } catch (err) {
+         console.warn('Browser blocked automatic TTS playback', err);
+         updateMessageAudio(messageId, { audioUrl: url, audioStatus: 'blocked' });
+         // Show a subtle indication that user needs to tap to play
+         ttsError = 'Tap to hear response';
+         setTimeout(() => { ttsError = null; }, 3000);
+       }
     } catch (err) {
       console.error('Chatterbox TTS failed', err);
       ttsError = 'Voice needs a tap';
@@ -454,8 +459,9 @@ import GlowingIcon from '$lib/components/GlowingIcon.svelte';
                  const fullUrl = URL.createObjectURL(blob);
                  updateMessageAudio(assistantMessage.id, { audioUrl: fullUrl, audioStatus: 'ready' });
                  
-                 // Auto-play the complete audio if TTS is enabled
-                 if (ttsEnabled) {
+                  // Auto-play the complete audio if TTS is enabled and there was recent user interaction
+                 if (ttsEnabled && hasRecentUserInteraction && (Date.now() - lastUserInteractionTime) < 30000) {
+                   // Only attempt autoplay within 30 seconds of user interaction to comply with browser policies
                    void speakMessage(assistantMessage.id, accumulatedText, true);
                  }
                }
@@ -506,6 +512,8 @@ import GlowingIcon from '$lib/components/GlowingIcon.svelte';
     messages = nextMessages;
     inputText = '';
     isThinking = true;
+    hasRecentUserInteraction = true;
+    lastUserInteractionTime = Date.now();
     await scrollToLatest();
 
     await sendPayload({ message: text, messages: toChatHistory(nextMessages) });
@@ -513,6 +521,8 @@ import GlowingIcon from '$lib/components/GlowingIcon.svelte';
 
   const startRecording = async () => {
     try {
+      hasRecentUserInteraction = true;
+      lastUserInteractionTime = Date.now();
        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
        const mimeType =
          MediaRecorder.isTypeSupported('audio/webm;codecs=opus')

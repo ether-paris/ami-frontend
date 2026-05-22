@@ -131,12 +131,8 @@ const transcribeAudio = async (audioBase64: string) => {
 
   const response = await client.audio.transcriptions.complete({
     model: "voxtral-mini-latest",
-    file: new File([audioBytes], "audio.webm", { type: "audio/webm" }),
-    language: "fr",
-    // Add parameters to preserve natural speech characteristics
-    temperature: 0.7, // Slightly higher for more natural transcription
-    // Note: The API may still clean up some hesitations, but the system prompt
-    // will instruct the AI to preserve them in the final transcription field
+    file: new File([audioBytes], "audio/webm", { type: "audio/webm" }),
+    language: "fr"
   });
 
   let transcription = response.text?.trim() || "";
