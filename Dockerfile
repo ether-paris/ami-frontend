@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Install dependencies using bun (following Ether pattern)
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+RUN bun install
 
 # Copy source code
 COPY . .
