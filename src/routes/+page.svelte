@@ -42,13 +42,10 @@
 
   let ttsEnabled = true;
   let ttsReady = true;
-  let activeVoiceName = 'Kokoro (k8s)';
+  let activeVoiceName = 'Chatterbox TTS';
   let ttsError: string | null = null;
   let currentSpeechAudio: HTMLAudioElement | null = null;
   let currentSpeechUrl: string | null = null;
-
-  const KOKORO_VOICE = 'ff_siwis'; // Try slowing down if it sounds too robotic
-  const KOKORO_LANGUAGE = 'fr-fr';
 
   const assistantIntro =
     'Your French tutor listens, replies out loud, and keeps corrections separate so the conversation stays natural.';
@@ -103,11 +100,7 @@
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        text,
-        voice: KOKORO_VOICE,
-        language: KOKORO_LANGUAGE
-      })
+      body: JSON.stringify({ text })
     });
 
     if (!res.ok) {
@@ -135,7 +128,7 @@
         await playSpeechUrl(existingMessage.audioUrl);
         updateMessageAudio(messageId, { audioStatus: 'ready' });
       } catch (err) {
-        console.error('Kokoro playback failed', err);
+        console.error('TTS playback failed', err);
         updateMessageAudio(messageId, { audioStatus: 'blocked' });
       }
       return;
@@ -154,11 +147,11 @@
       try {
         await playSpeechUrl(url);
       } catch (err) {
-        console.warn('Browser blocked automatic Kokoro playback', err);
+        console.warn('Browser blocked automatic TTS playback', err);
         updateMessageAudio(messageId, { audioUrl: url, audioStatus: 'blocked' });
       }
     } catch (err) {
-      console.error('Kokoro TTS failed', err);
+      console.error('Chatterbox TTS failed', err);
       ttsError = 'Voice needs a tap';
       ttsReady = false;
       updateMessageAudio(messageId, { audioStatus: 'error' });
@@ -236,38 +229,81 @@
       return;
     }
 
-    const data = await res.json();
-    const replyText = typeof data?.reply === 'string' ? data.reply : '';
-    const lessonText = typeof data?.lesson === 'string' ? data.lesson : undefined;
-    const transcriptText = typeof data?.transcript === 'string' ? data.transcript.trim() : '';
-    const assistantMessage = createMessage('assistant', replyText, { lesson: lessonText });
-
-    if (pendingMessageId) {
-      messages = messages.map((message) =>
-        message.id === pendingMessageId
-          ? {
-              ...message,
-              text: transcriptText || 'Voice note sent',
-              includeInContext: Boolean(transcriptText),
-              pending: false
-            }
-          : message
-      );
-
-      if (clipId) {
-        updateVoiceClip(clipId, {
-          transcript: transcriptText || null,
-          status: 'ready'
-        });
-      }
-    }
-
+    // Immediately create an empty assistant message to stream into
+    const assistantMessage = createMessage('assistant', '');
     messages = [...messages, assistantMessage];
     isThinking = false;
     await scrollToLatest();
 
-    // Read only the conversational answer, never the teaching note.
-    void speakMessage(assistantMessage.id, replyText, true);
+    const reader = res.body?.getReader();
+    if (!reader) return;
+
+    const decoder = new TextDecoder();
+    let accumulatedText = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n');
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6));
+
+            if (data.type === 'transcript') {
+              if (pendingMessageId) {
+                messages = messages.map((message) =>
+                  message.id === pendingMessageId
+                    ? {
+                        ...message,
+                        text: data.text || 'Voice note sent',
+                        includeInContext: Boolean(data.text),
+                        pending: false
+                      }
+                    : message
+                );
+              }
+              if (clipId) {
+                updateVoiceClip(clipId, { transcript: data.text || null, status: 'ready' });
+              }
+            } else if (data.type === 'chunk') {
+              accumulatedText += data.text;
+
+              // Parse lesson locally on the fly
+              const cleanText = accumulatedText.replace(/^```(?:json)?/i, '').replace(/```$/i, '');
+              const lessonMatch = cleanText.match(/petite le[c\u00e7]on/i);
+              let reply = cleanText;
+              let lesson: string | undefined = undefined;
+
+              if (lessonMatch && lessonMatch.index !== undefined) {
+                reply = cleanText.slice(0, lessonMatch.index).trimEnd();
+                lesson = cleanText.slice(lessonMatch.index).trimEnd();
+              }
+
+              messages = messages.map((message) =>
+                message.id === assistantMessage.id
+                  ? { ...message, text: reply, lesson }
+                  : message
+              );
+              await scrollToLatest();
+            } else if (data.type === 'error') {
+              pushAssistantError(data.message);
+            } else if (data.type === 'done') {
+              const finalMsg = messages.find((m) => m.id === assistantMessage.id);
+              if (finalMsg && finalMsg.text) {
+                // Read only the conversational answer, never the teaching note.
+                void speakMessage(assistantMessage.id, finalMsg.text, true);
+              }
+            }
+          } catch (e) {
+            // Ignore malformed JSON from partial stream chunks
+          }
+        }
+      }
+    }
   };
 
   const sendPayload = async (

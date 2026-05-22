@@ -1,21 +1,21 @@
-import { error, json } from '@sveltejs/kit';
-import type { RequestHandler } from './$types';
+import { error, json } from "@sveltejs/kit";
+import type { RequestHandler } from "./$types";
 
 type ChatMessage = {
-    role: 'system' | 'user' | 'assistant';
-    content: string;
+  role: "system" | "user" | "assistant";
+  content: string;
 };
 
 type OpenRouterResponse = {
-    choices?: Array<{
-        message?: {
-            content?: string;
-        };
-    }>;
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
 };
 
 type GroqTranscription = {
-    text?: string;
+  text?: string;
 };
 
 const SYSTEM_PROMPT = `You are an expert, native French tutor. Respond ONLY in French.
@@ -36,143 +36,260 @@ Teaching section format (if needed):
 - [correction 2]"`;
 
 const normalizeMessages = (messages: unknown): ChatMessage[] => {
-    if (!Array.isArray(messages)) return [];
+  if (!Array.isArray(messages)) return [];
 
-    return messages
-        .filter(
-            (message): message is ChatMessage =>
-                typeof message === 'object' &&
-                message !== null &&
-                'role' in message &&
-                'content' in message &&
-                (message.role === 'system' || message.role === 'user' || message.role === 'assistant') &&
-                typeof message.content === 'string' &&
-                message.content.trim().length > 0
-        )
-        .map((message) => ({
-            role: message.role,
-            content: message.content.trim()
-        }));
+  return messages
+    .filter(
+      (message): message is ChatMessage =>
+        typeof message === "object" &&
+        message !== null &&
+        "role" in message &&
+        "content" in message &&
+        (message.role === "system" ||
+          message.role === "user" ||
+          message.role === "assistant") &&
+        typeof message.content === "string" &&
+        message.content.trim().length > 0,
+    )
+    .map((message) => ({
+      role: message.role,
+      content: message.content.trim(),
+    }));
 };
 
 const transcribeAudio = async (audioBase64: string) => {
-    const groqApiKey = process.env.GROQ_API_KEY;
+  const groqApiKey = process.env.GROQ_API_KEY;
 
-    if (!groqApiKey) {
-        throw error(500, 'GROQ_API_KEY is not configured');
-    }
+  if (!groqApiKey) {
+    throw error(500, "GROQ_API_KEY is not configured");
+  }
 
-    const audioBytes = Buffer.from(audioBase64, 'base64');
-    const form = new FormData();
-    form.append('file', new Blob([audioBytes], { type: 'audio/webm' }), 'audio.webm');
-    form.append('model', 'whisper-large-v3-turbo');
-    form.append('language', 'fr');
-    form.append('response_format', 'json');
+  const audioBytes = Buffer.from(audioBase64, "base64");
+  const form = new FormData();
+  form.append(
+    "file",
+    new Blob([audioBytes], { type: "audio/webm" }),
+    "audio.webm",
+  );
+  form.append("model", "whisper-large-v3-turbo");
+  form.append("language", "fr");
+  form.append("response_format", "json");
 
-    const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${groqApiKey}`
-        },
-        body: form
-    });
+  const res = await fetch(
+    "https://api.groq.com/openai/v1/audio/transcriptions",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${groqApiKey}`,
+      },
+      body: form,
+    },
+  );
 
-    if (!res.ok) {
-        throw error(502, 'Audio transcription failed');
-    }
+  if (!res.ok) {
+    throw error(502, "Audio transcription failed");
+  }
 
-    const data = (await res.json()) as GroqTranscription;
+  const data = (await res.json()) as GroqTranscription;
 
-    return data.text?.trim() || '';
+  return data.text?.trim() || "";
 };
 
 const splitLesson = (text: string) => {
-    const cleanText = text
-        .trim()
-        .replace(/^```(?:json)?/i, '')
-        .replace(/```$/i, '')
-        .trim();
-    const lessonMatch = cleanText.match(/petite le[c\u00e7]on/i);
+  const cleanText = text
+    .trim()
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/i, "")
+    .trim();
+  const lessonMatch = cleanText.match(/petite le[c\u00e7]on/i);
 
-    if (!lessonMatch || lessonMatch.index === undefined) {
-        return { reply: cleanText, lesson: null, fullText: cleanText };
-    }
+  if (!lessonMatch || lessonMatch.index === undefined) {
+    return { reply: cleanText, lesson: null, fullText: cleanText };
+  }
 
-    return {
-        reply: cleanText.slice(0, lessonMatch.index).trimEnd(),
-        lesson: cleanText.slice(lessonMatch.index).trimEnd(),
-        fullText: cleanText
-    };
+  return {
+    reply: cleanText.slice(0, lessonMatch.index).trimEnd(),
+    lesson: cleanText.slice(lessonMatch.index).trimEnd(),
+    fullText: cleanText,
+  };
 };
 
 export const POST: RequestHandler = async ({ request }) => {
-    const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+  const openRouterApiKey = process.env.OPENROUTER_API_KEY;
 
-    if (!openRouterApiKey) {
-        throw error(500, 'OPENROUTER_API_KEY is not configured');
+  if (!openRouterApiKey) {
+    throw error(500, "OPENROUTER_API_KEY is not configured");
+  }
+
+  const body = await request.json().catch(() => {
+    throw error(400, "Invalid JSON body");
+  });
+
+  const messages = normalizeMessages(body?.messages);
+
+  if (
+    messages.length === 0 &&
+    typeof body?.message === "string" &&
+    body.message.trim()
+  ) {
+    messages.push({ role: "user", content: body.message.trim() });
+  }
+
+  let transcript: string | null = null;
+  const audioBase64 = typeof body?.audio === "string" ? body.audio : null;
+
+  if (audioBase64) {
+    transcript = await transcribeAudio(audioBase64);
+
+    if (transcript) {
+      messages.push({ role: "user", content: transcript });
     }
+  }
 
-    const body = await request.json().catch(() => {
-        throw error(400, 'Invalid JSON body');
-    });
+  if (messages.length === 0) {
+    throw error(400, "A message or audio note is required");
+  }
 
-    const messages = normalizeMessages(body?.messages);
+  const requestMessages =
+    messages[0]?.role === "system"
+      ? messages
+      : [{ role: "system" as const, content: SYSTEM_PROMPT }, ...messages];
 
-    if (messages.length === 0 && typeof body?.message === 'string' && body.message.trim()) {
-        messages.push({ role: 'user', content: body.message.trim() });
-    }
+    const MODELS_TO_TRY = [
+        'openai/gpt-oss-120b:free',
+        'deepseek/deepseek-v4-flash:free',
+        'qwen/qwen3-next-80b-a3b-instruct:free',
+        'google/gemma-4-26b-a4b-it:free',
+        'minimax/minimax-m2.5:free',
+        'meta-llama/llama-3.3-70b-instruct:free',
+        'openrouter/free'
+    ];
 
-    let transcript: string | null = null;
-    const audioBase64 = typeof body?.audio === 'string' ? body.audio : null;
-
-    if (audioBase64) {
-        transcript = await transcribeAudio(audioBase64);
+  return new Response(
+    new ReadableStream({
+      async start(controller) {
+        const encoder = new TextEncoder();
+        const sendEvent = (type: string, payload?: any) => {
+          const data = JSON.stringify({ type, ...payload });
+          controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+        };
 
         if (transcript) {
-            messages.push({ role: 'user', content: transcript });
+          sendEvent("transcript", { text: transcript });
         }
-    }
 
-    if (messages.length === 0) {
-        throw error(400, 'A message or audio note is required');
-    }
+        let success = false;
+        let lastErrorStatus = 502;
 
-    const requestMessages =
-        messages[0]?.role === 'system'
-            ? messages
-            : [{ role: 'system' as const, content: SYSTEM_PROMPT }, ...messages];
+        for (const model of MODELS_TO_TRY) {
+          console.log(`Trying OpenRouter model: ${model}...`);
 
-    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${openRouterApiKey}`,
-            'Content-Type': 'application/json',
-            'HTTP-Referer': 'https://ami.ether.paris',
-            'X-OpenRouter-Title': 'Ami French Tutor'
-        },
-        body: JSON.stringify({
-            model: 'openrouter/free',
-            messages: requestMessages
-        })
-    });
+          const abortController = new AbortController();
+          // 1.5 second TTFB timeout
+          const timeoutId = setTimeout(() => abortController.abort(), 1500);
 
-    if (!res.ok) {
-        throw error(502, 'AI response failed');
-    }
+          try {
+            const res = await fetch(
+              "https://openrouter.ai/api/v1/chat/completions",
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${openRouterApiKey}`,
+                  "Content-Type": "application/json",
+                  "HTTP-Referer": "https://ami.ether.paris",
+                  "X-OpenRouter-Title": "Ami French Tutor",
+                },
+                        body: JSON.stringify({
+                            model: model,
+                            stream: true,
+                            max_tokens: 1000,
+                            messages: requestMessages
+                        }),
+                signal: abortController.signal,
+              },
+            );
 
-    const data = (await res.json()) as OpenRouterResponse;
-    const content = data.choices?.[0]?.message?.content?.trim();
+            if (!res.ok) {
+              clearTimeout(timeoutId);
+              const errorText = await res
+                .text()
+                .catch(() => "Could not read error body");
+              console.warn(
+                `Model ${model} failed with ${res.status}:`,
+                errorText,
+              );
+              lastErrorStatus = res.status;
+              continue;
+            }
 
-    if (!content) {
-        throw error(502, 'AI response was empty');
-    }
+            const reader = res.body?.getReader();
+            if (!reader) {
+              clearTimeout(timeoutId);
+              continue;
+            }
 
-    const { reply, lesson, fullText } = splitLesson(content);
+            const decoder = new TextDecoder();
+            let firstChunkReceived = false;
 
-    return json({
-        reply,
-        lesson,
-        full_text: fullText,
-        transcript
-    });
+            while (true) {
+              const { value, done } = await reader.read();
+
+              if (!firstChunkReceived) {
+                firstChunkReceived = true;
+                clearTimeout(timeoutId); // Got TTFB, cancel timeout!
+                console.log(`Success with model: ${model} (Stream started)`);
+                success = true;
+              }
+
+              if (done) break;
+
+              const chunk = decoder.decode(value, { stream: true });
+              const lines = chunk.split("\n");
+
+              for (const line of lines) {
+                if (line.startsWith("data: ") && line !== "data: [DONE]") {
+                  try {
+                    const data = JSON.parse(line.slice(6));
+                    const text = data.choices?.[0]?.delta?.content;
+                    if (text) {
+                      sendEvent("chunk", { text });
+                    }
+                  } catch (e) {
+                    // ignore malformed JSON chunks
+                  }
+                }
+              }
+            }
+
+            if (success) break;
+          } catch (e) {
+            clearTimeout(timeoutId);
+            const error = e as Error;
+            if (error.name === "AbortError") {
+              console.warn(`Model ${model} timed out after 1.5 seconds.`);
+            } else {
+              console.warn(`Model ${model} threw an error:`, error.message);
+            }
+          }
+        }
+
+        if (!success) {
+          console.error("All models in the hierarchy failed or timed out.");
+          sendEvent("error", {
+            message: `All models failed (Last status: ${lastErrorStatus})`,
+          });
+        }
+
+        sendEvent("done");
+        controller.close();
+      },
+    }),
+    {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    },
+  );
 };
