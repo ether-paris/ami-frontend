@@ -7,6 +7,7 @@ WORKDIR /app
     COPY scripts/ scripts/
     COPY src/lib/server/db/schema.ts src/lib/server/db/schema.ts
     COPY drizzle/ drizzle/
+    RUN ls -la drizzle/  # Verify drizzle/ contents
     RUN bun install
 
     # Copy remaining source code
