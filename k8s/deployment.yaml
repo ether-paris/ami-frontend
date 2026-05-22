@@ -11,9 +11,9 @@ spec:
     matchLabels:
       app: ami-frontend
   template:
-    metadata:
-      labels:
-        app: ami-frontend
+     metadata:
+       labels:
+         app: ami-frontend
      spec:
        nodeSelector:
          role: worker
