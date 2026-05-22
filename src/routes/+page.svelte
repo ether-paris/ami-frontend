@@ -727,20 +727,24 @@ import GlowingIcon from '$lib/components/GlowingIcon.svelte';
          {/if}
        </button>
        
-       <!-- Transcription Service Selector (Bassem only) -->
-       {#if isAuthenticated && userInfo.email === 'bassem.bme@gmail.com'}
-       <div class="flex items-center gap-2 ml-2">
-         <select
-           bind:value={preferredTranscriptionService}
-           class="text-xs bg-white border border-slate-200 rounded px-2 py-1 h-6 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-           title="Transcription Service"
-         >
-           <option value="auto">Auto (Groq → Mistral)</option>
-           <option value="groq">Groq (Whisper)</option>
-           <option value="mistral">Mistral (Voxtral)</option>
-         </select>
-       </div>
-       {/if}
+        <!-- Transcription Service Selector (Bassem only) -->
+        {#if isAuthenticated}
+        <!-- Debug: Show email for testing -->
+        <div class="text-xs text-slate-500 ml-2">{userInfo.email}</div>
+        {/if}
+        {#if isAuthenticated && userInfo.email === 'bassem.bme@gmail.com'}
+        <div class="flex items-center gap-2 ml-2">
+          <select
+            bind:value={preferredTranscriptionService}
+            class="text-xs bg-white border border-slate-200 rounded px-2 py-1 h-6 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+            title="Transcription Service"
+          >
+            <option value="auto">Auto (Groq → Mistral)</option>
+            <option value="groq">Groq (Whisper)</option>
+            <option value="mistral">Mistral (Voxtral)</option>
+          </select>
+        </div>
+        {/if}
      </div>
    </header>
 
