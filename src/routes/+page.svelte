@@ -10,6 +10,7 @@
     pending?: boolean;
     audioUrl?: string;
     audioStatus?: 'idle' | 'generating' | 'ready' | 'blocked' | 'error';
+    audioTriggered?: boolean;
   };
 
   type ChatHistoryMessage = {
@@ -88,6 +89,69 @@
     currentSpeechAudio?.pause();
     currentSpeechAudio = null;
     currentSpeechUrl = null;
+    audioQueue.forEach(URL.revokeObjectURL);
+    audioQueue = [];
+    isPlayingAudioQueue = false;
+
+    if (activeClipId !== null) {
+      const activeAudio = document.getElementById(`clip-audio-${activeClipId}`) as HTMLAudioElement | null;
+      if (activeAudio) {
+        activeAudio.pause();
+        activeAudio.currentTime = 0;
+      }
+      activeClipId = null;
+    }
+  };
+
+  let audioQueue: string[] = [];
+  let isPlayingAudioQueue = false;
+
+  const playNextInQueue = async () => {
+    if (audioQueue.length === 0) {
+      isPlayingAudioQueue = false;
+      return;
+    }
+    isPlayingAudioQueue = true;
+    const url = audioQueue.shift()!;
+    
+    stopSpeech();
+    currentSpeechUrl = url;
+    currentSpeechAudio = new Audio(url);
+    
+    currentSpeechAudio.onended = () => {
+      URL.revokeObjectURL(url);
+      playNextInQueue();
+    };
+
+    currentSpeechAudio.onerror = () => {
+      console.error('Audio playback error in queue');
+      playNextInQueue();
+    };
+
+    try {
+      await currentSpeechAudio.play();
+    } catch (err) {
+      console.warn('Playback blocked', err);
+      // If blocked, we stop the queue
+      isPlayingAudioQueue = false;
+      audioQueue.forEach(URL.revokeObjectURL);
+      audioQueue = [];
+    }
+  };
+
+  const enqueueAudioChunk = (base64Audio: string) => {
+    const binary = atob(base64Audio);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+    }
+    const blob = new Blob([bytes], { type: 'audio/mpeg' });
+    const url = URL.createObjectURL(blob);
+    
+    audioQueue.push(url);
+    if (!isPlayingAudioQueue) {
+      void playNextInQueue();
+    }
   };
 
   const updateMessageAudio = (messageId: number, patch: Partial<Pick<Message, 'audioUrl' | 'audioStatus'>>) => {
@@ -205,11 +269,21 @@
       return;
     }
 
+    // Stop assistant speech or other active clips
+    stopSpeech();
+
     activeClipId = clipId;
     const currentAudio = document.getElementById(`clip-audio-${clipId}`) as HTMLAudioElement | null;
-    currentAudio?.play().catch(() => {
+    if (currentAudio) {
+      currentAudio.onended = () => {
+        activeClipId = null;
+      };
+      currentAudio.play().catch(() => {
+        activeClipId = null;
+      });
+    } else {
       activeClipId = null;
-    });
+    }
   };
 
   const handleResponse = async (res: Response, pendingMessageId?: number, clipId?: number) => {
@@ -240,6 +314,7 @@
 
     const decoder = new TextDecoder();
     let accumulatedText = '';
+    let accumulatedAudioBytes: Uint8Array[] = [];
 
     while (true) {
       const { value, done } = await reader.read();
@@ -283,19 +358,37 @@
                 lesson = cleanText.slice(lessonMatch.index).trimEnd();
               }
 
-              messages = messages.map((message) =>
-                message.id === assistantMessage.id
-                  ? { ...message, text: reply, lesson }
-                  : message
-              );
+              messages = messages.map((message) => {
+                if (message.id === assistantMessage.id) {
+                  return { ...message, text: reply, lesson };
+                }
+                return message;
+              });
               await scrollToLatest();
+            } else if (data.type === 'audio') {
+              if (ttsEnabled) {
+                const binary = atob(data.data);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    bytes[i] = binary.charCodeAt(i);
+                }
+                accumulatedAudioBytes.push(bytes);
+                enqueueAudioChunk(data.data);
+              }
             } else if (data.type === 'error') {
               pushAssistantError(data.message);
             } else if (data.type === 'done') {
-              const finalMsg = messages.find((m) => m.id === assistantMessage.id);
-              if (finalMsg && finalMsg.text) {
-                // Read only the conversational answer, never the teaching note.
-                void speakMessage(assistantMessage.id, finalMsg.text, true);
+              if (accumulatedAudioBytes.length > 0) {
+                const totalLength = accumulatedAudioBytes.reduce((acc, val) => acc + val.length, 0);
+                const fullBytes = new Uint8Array(totalLength);
+                let offset = 0;
+                for (const bytes of accumulatedAudioBytes) {
+                  fullBytes.set(bytes, offset);
+                  offset += bytes.length;
+                }
+                const blob = new Blob([fullBytes], { type: 'audio/mpeg' });
+                const fullUrl = URL.createObjectURL(blob);
+                updateMessageAudio(assistantMessage.id, { audioUrl: fullUrl, audioStatus: 'ready' });
               }
             }
           } catch (e) {
@@ -307,7 +400,7 @@
   };
 
   const sendPayload = async (
-    payload: { message?: string; audio?: string; audioMimeType?: string; messages: ChatHistoryMessage[] },
+    payload: { message?: string; audio?: string; audioMimeType?: string; messages: ChatHistoryMessage[]; ttsEnabled?: boolean },
     pendingMessageId?: number,
     clipId?: number
   ) => {
@@ -315,7 +408,7 @@
       const res = await fetch(API_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ ...payload, ttsEnabled })
       });
 
       await handleResponse(res, pendingMessageId, clipId);
@@ -391,6 +484,13 @@
     } catch (err) {
       console.error('Error accessing microphone', err);
       alert('Could not access microphone.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+      isRecording = false;
     }
   };
 
@@ -552,6 +652,7 @@
           class="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 rounded-full shadow-sm shrink-0 hover:bg-slate-50 transition-colors {activeClipId === clip.id ? 'ring-2 ring-emerald-500/50' : ''}"
           on:click={() => playClip(clip.id)}
         >
+          <audio id="clip-audio-{clip.id}" src={clip.url} class="hidden"></audio>
           <div class="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-emerald-600">
             {#if activeClipId === clip.id}
                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>

@@ -1,6 +1,5 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { env } from '$env/dynamic/private';
 
 export const POST: RequestHandler = async ({ request }) => {
     const body = await request.json().catch(() => {
@@ -13,12 +12,14 @@ export const POST: RequestHandler = async ({ request }) => {
         throw error(400, 'Text is required');
     }
 
-    if (!env.GOOGLE_API_KEY) {
+    const googleApiKey = process.env.GOOGLE_API_KEY;
+
+    if (!googleApiKey) {
         throw error(500, 'GOOGLE_API_KEY is not set');
     }
 
     try {
-        const res = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${env.GOOGLE_API_KEY}`, {
+        const res = await fetch(`https://texttospeech.googleapis.com/v1/text:synthesize?key=${googleApiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

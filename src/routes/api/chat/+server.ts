@@ -1,10 +1,46 @@
 import { error, json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
+import { streamFrenchAudioChunks } from "$lib/server/tts-streamer";
 
 type ChatMessage = {
   role: "system" | "user" | "assistant";
   content: string;
 };
+
+function createPushable<T>() {
+    const queue: T[] = [];
+    let resolve: ((value: void | PromiseLike<void>) => void) | null = null;
+    let isDone = false;
+
+    const push = (value: T) => {
+        queue.push(value);
+        if (resolve) resolve();
+    };
+
+    const end = () => {
+        isDone = true;
+        if (resolve) resolve();
+    };
+
+    const iterable = {
+        [Symbol.asyncIterator]() {
+            return {
+                async next(): Promise<IteratorResult<T>> {
+                    while (queue.length === 0 && !isDone) {
+                        await new Promise<void>(res => { resolve = res; });
+                        resolve = null;
+                    }
+                    if (queue.length > 0) {
+                        return { value: queue.shift() as T, done: false };
+                    }
+                    return { value: undefined, done: true };
+                }
+            };
+        }
+    };
+
+    return { push, end, iterable };
+}
 
 type OpenRouterResponse = {
   choices?: Array<{
@@ -174,6 +210,23 @@ export const POST: RequestHandler = async ({ request }) => {
           controller.enqueue(encoder.encode(`data: ${data}\n\n`));
         };
 
+        const ttsEnabled = Boolean(body?.ttsEnabled);
+        const googleApiKey = process.env.GOOGLE_API_KEY;
+        const textQueue = createPushable<string>();
+        let audioTask: Promise<void> | null = null;
+
+        if (ttsEnabled && googleApiKey) {
+            audioTask = (async () => {
+                try {
+                    for await (const chunk of streamFrenchAudioChunks(textQueue.iterable, googleApiKey)) {
+                        sendEvent('audio', { data: Buffer.from(chunk).toString('base64') });
+                    }
+                } catch (e) {
+                    console.error('TTS streaming error:', e);
+                }
+            })();
+        }
+
         if (transcript) {
           sendEvent("transcript", { text: transcript });
         }
@@ -253,6 +306,7 @@ export const POST: RequestHandler = async ({ request }) => {
                     const text = data.choices?.[0]?.delta?.content;
                     if (text) {
                       sendEvent("chunk", { text });
+                      if (ttsEnabled) textQueue.push(text);
                     }
                   } catch (e) {
                     // ignore malformed JSON chunks
@@ -261,7 +315,10 @@ export const POST: RequestHandler = async ({ request }) => {
               }
             }
 
-            if (success) break;
+            if (success) {
+                textQueue.end();
+                break;
+            }
           } catch (e) {
             clearTimeout(timeoutId);
             const error = e as Error;
@@ -278,6 +335,11 @@ export const POST: RequestHandler = async ({ request }) => {
           sendEvent("error", {
             message: `All models failed (Last status: ${lastErrorStatus})`,
           });
+          textQueue.end();
+        }
+
+        if (audioTask) {
+            await audioTask;
         }
 
         sendEvent("done");
