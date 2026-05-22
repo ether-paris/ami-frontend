@@ -2,7 +2,7 @@ import { error, json } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { streamFrenchAudioChunks } from "$lib/server/tts-streamer";
 import { resolveMistralVoiceId } from "$lib/server/mistral-voices";
-import { db } from "$lib/server/db/client";
+import { db } from "$lib/server/db";
 import { usage_logs } from "$lib/server/db/schema";
 import { Mistral } from "@mistralai/mistralai";
 
