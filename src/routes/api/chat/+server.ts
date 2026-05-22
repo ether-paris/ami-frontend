@@ -172,6 +172,25 @@ const transcribeAudio = async (audioBase64: string) => {
 
     const response = await client.audio.transcriptions.complete({
       model: "voxtral-mini-latest",
+      file: new File([audioBytes], "audio.webm", { type: "audio/webm" }),
+      language: "fr",
+      temperature: 0.0, // Set to 0 for most literal transcription
+      timestampGranularities: ["word"], // Get word-level timestamps for more control
+      // Note: Mistral doesn't have suppress_tokens parameter like Whisper,
+      // but low temperature and word timestamps help preserve natural speech
+    });
+
+    return response.text?.trim() || "";
+  } catch (e) {
+    console.error("Mistral transcription failed:", e);
+    throw error(502, "All transcription services failed");
+  }
+
+    const client = new Mistral({ apiKey: mistralApiKey });
+    const audioBytes = Buffer.from(audioBase64, "base64");
+
+    const response = await client.audio.transcriptions.complete({
+      model: "voxtral-mini-latest",
       file: new File([audioBytes], "audio/webm", { type: "audio/webm" }),
       language: "fr"
     });
