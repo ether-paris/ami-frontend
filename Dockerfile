@@ -7,6 +7,8 @@ COPY . .
 RUN npm install -g bun
 # Skip prepare script during build (migrations should run at runtime)
 RUN npm ci --ignore-scripts
+# Fix missing optional dependencies issue on ARM64
+RUN npm rebuild && npm install --no-optional
 RUN npm run build
 
 # runtime
