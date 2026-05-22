@@ -5,7 +5,8 @@ COPY package*.json ./
 COPY . .
 # Install bun first since package.json uses bun scripts
 RUN npm install -g bun
-RUN npm ci
+# Skip prepare script during build (migrations should run at runtime)
+RUN npm ci --ignore-scripts
 RUN npm run build
 
 # runtime
