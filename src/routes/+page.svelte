@@ -517,6 +517,19 @@
 
   onMount(() => {
     // TTS is now handled by the backend server
+    const handleViewportResize = () => {
+      void scrollToLatest();
+    };
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportResize);
+    }
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportResize);
+      }
+    };
   });
 </script>
 
@@ -699,7 +712,7 @@
         <!-- Text Input -->
         <div class="flex-1 bg-white rounded-2xl sm:rounded-full border border-slate-300 shadow-sm flex items-end relative overflow-hidden transition-all focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500">
           <textarea
-            class="w-full max-h-32 min-h-[44px] py-3 pl-4 pr-12 bg-transparent border-none resize-none focus:outline-none focus:ring-0 text-[15px] placeholder:text-slate-400 disabled:opacity-50"
+            class="w-full max-h-32 min-h-[44px] py-3 pl-4 pr-12 bg-transparent border-none resize-none focus:outline-none focus:ring-0 text-[16px] placeholder:text-slate-400 disabled:opacity-50"
             bind:value={inputText}
             placeholder="Type a message"
             disabled={isThinking || isRecording}
