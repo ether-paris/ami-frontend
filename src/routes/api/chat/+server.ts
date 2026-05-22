@@ -66,6 +66,10 @@ type GroqTranscription = {
   text?: string;
 };
 
+type MistralTranscription = {
+  text?: string;
+};
+
 const SYSTEM_PROMPT = `You are an expert, native French tutor. Respond ONLY in French.
 
 For each user message (which will already be transcribed text):
@@ -117,26 +121,64 @@ const normalizeMessages = (messages: unknown): ChatMessage[] => {
 };
 
 const transcribeAudio = async (audioBase64: string) => {
-  const mistralApiKey = process.env.MISTRAL_API_KEY;
+  // Try Groq first (Whisper Large V3 Turbo)
+  try {
+    const groqApiKey = process.env.GROQ_API_KEY;
 
-  if (!mistralApiKey) {
-    throw error(500, "MISTRAL_API_KEY is not configured");
+    if (groqApiKey) {
+      const audioBytes = Buffer.from(audioBase64, "base64");
+      const form = new FormData();
+      form.append(
+        "file",
+        new Blob([audioBytes], { type: "audio/webm" }),
+        "audio.webm",
+      );
+      form.append("model", "whisper-large-v3-turbo");
+      form.append("language", "fr");
+      form.append("response_format", "json");
+
+      const res = await fetch(
+        "https://api.groq.com/openai/v1/audio/transcriptions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${groqApiKey}`,
+          },
+          body: form,
+        },
+      );
+
+      if (res.ok) {
+        const data = (await res.json()) as GroqTranscription;
+        return data.text?.trim() || "";
+      }
+    }
+  } catch (e) {
+    console.warn("Groq transcription failed, falling back to Mistral:", e);
   }
 
-  const client = new Mistral({ apiKey: mistralApiKey });
-  const audioBytes = Buffer.from(audioBase64, "base64");
+  // Fallback to Mistral if Groq fails or is not configured
+  try {
+    const mistralApiKey = process.env.MISTRAL_API_KEY;
 
-  const response = await client.audio.transcriptions.complete({
-    model: "voxtral-mini-latest",
-    file: new File([audioBytes], "audio/webm", { type: "audio/webm" }),
-    language: "fr"
-  });
+    if (!mistralApiKey) {
+      throw error(500, "Both GROQ_API_KEY and MISTRAL_API_KEY are not configured");
+    }
 
-  let transcription = response.text?.trim() || "";
-  
-  // If the transcription seems too clean, add a note to preserve natural speech
-  // This will be handled by the system prompt instructions
-  return transcription;
+    const client = new Mistral({ apiKey: mistralApiKey });
+    const audioBytes = Buffer.from(audioBase64, "base64");
+
+    const response = await client.audio.transcriptions.complete({
+      model: "voxtral-mini-latest",
+      file: new File([audioBytes], "audio/webm", { type: "audio/webm" }),
+      language: "fr"
+    });
+
+    return response.text?.trim() || "";
+  } catch (e) {
+    console.error("Mistral transcription failed:", e);
+    throw error(502, "All transcription services failed");
+  }
 };
 
 const splitLesson = (data: MistralResponse) => {
