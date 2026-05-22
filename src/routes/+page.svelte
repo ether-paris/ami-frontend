@@ -617,11 +617,46 @@ import GlowingIcon from '$lib/components/GlowingIcon.svelte';
 </script>
 
 <svelte:head>
-  <title>Ami French Tutor</title>
+  <title>Ami • French Tutor</title>
   <meta
     name="description"
-    content="A voice-first French tutor that replies naturally and keeps grammar notes separate."
+    content="Ami is your voice-first French tutor that replies naturally and keeps grammar lessons separate for fluid conversation."
   />
+  
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://ami-tutor.com" />
+  <meta property="og:title" content="Ami • French Tutor" />
+  <meta property="og:description" content="Ami is your voice-first French tutor that replies naturally and keeps grammar lessons separate for fluid conversation." />
+  <meta property="og:image" content="https://ami-tutor.com/og-image.svg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:type" content="image/svg+xml" />
+  <meta property="og:site_name" content="Ami French Tutor" />
+  <meta property="og:locale" content="en_US" />
+  
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@AmiFrenchTutor" />
+  <meta name="twitter:creator" content="@AmiFrenchTutor" />
+  <meta name="twitter:title" content="Ami • French Tutor" />
+  <meta name="twitter:description" content="Ami is your voice-first French tutor that replies naturally and keeps grammar lessons separate for fluid conversation." />
+  <meta name="twitter:image" content="https://ami-tutor.com/og-image.svg" />
+  <meta name="twitter:image:alt" content="Ami French Tutor - Voice-first French learning with a beautiful lavender orb" />
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" href="/favicon.svg" />
+  
+  <!-- Theme color -->
+  <meta name="theme-color" content="#8b5cf6" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="#8b5cf6" />
+  
+  <!-- Mobile viewport -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  
+  <!-- PWA manifest -->
+  <link rel="manifest" href="/manifest.json" />
 </svelte:head>
 
 <main class="flex flex-col h-dvh w-full bg-[#efeae2] font-sans text-slate-900 overflow-hidden relative">

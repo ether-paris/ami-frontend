@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="1200" height="630" fill="#efeae2" />
+  
+  <!-- Gradient background -->
+  <rect width="1200" height="630" fill="url(#gradient)" />
+  
+  <!-- Large Orb (centered) -->
+  <g transform="translate(600, 315)">
+    <!-- Outer glow -->
+    <circle cx="0" cy="0" r="180" fill="url(#orbGlow)" opacity="0.8"/>
+    
+    <!-- Main orb -->
+    <circle cx="0" cy="0" r="150" fill="url(#orbBase)" />
+    
+    <!-- Highlights -->
+    <circle cx="-40" cy="-30" r="80" fill="url(#highlight1)" opacity="0.6"/>
+    <circle cx="60" cy="40" r="60" fill="url(#highlight2)" opacity="0.4"/>
+    
+    <!-- Noise texture overlay -->
+    <circle cx="0" cy="0" r="150" fill="url(#noise)" opacity="0.15"/>
+    
+    <!-- Rim light -->
+    <circle cx="0" cy="0" r="150" fill="none" stroke="url(#rimLight)" stroke-width="2"/>
+  </g>
+  
+  <!-- App Title -->
+  <text x="600" y="500" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" 
+        font-size="64" font-weight="600" fill="#1e293b" text-anchor="middle">Ami</text>
+  
+  <text x="600" y="570" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" 
+        font-size="32" font-weight="400" fill="#64748b" text-anchor="middle">French Tutor</text>
+  
+  <!-- Description -->
+  <text x="600" y="610" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" 
+        font-size="24" font-weight="400" fill="#64748b" text-anchor="middle">Voice-first French learning</text>
+  
+  <defs>
+    <!-- Background gradient -->
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8fafc" />
+      <stop offset="100%" stop-color="#efeae2" />
+    </linearGradient>
+    
+    <!-- Orb base gradient (matte lavender) -->
+    <radialGradient id="orbBase" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="#a78bfa" />
+      <stop offset="40%" stop-color="#8b5cf6" />
+      <stop offset="80%" stop-color="#7c3aed" />
+      <stop offset="100%" stop-color="#6d28d9" />
+    </radialGradient>
+    
+    <!-- Orb glow -->
+    <radialGradient id="orbGlow" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.4" />
+      <stop offset="55%" stop-color="#a78bfa" stop-opacity="0.3" />
+      <stop offset="75%" stop-color="#6d28d9" stop-opacity="0" />
+    </radialGradient>
+    
+    <!-- Highlight 1 (peach) -->
+    <radialGradient id="highlight1" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="25%" stop-color="#fde047" />
+      <stop offset="50%" stop-color="#fef3c7" />
+      <stop offset="75%" stop-color="#fef08a" stop-opacity="0" />
+    </radialGradient>
+    
+    <!-- Highlight 2 (pink) -->
+    <radialGradient id="highlight2" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+      <stop offset="0%" stop-color="#c4b5fd" />
+      <stop offset="40%" stop-color="#a78bfa" />
+      <stop offset="70%" stop-color="#a78bfa" stop-opacity="0" />
+    </radialGradient>
+    
+    <!-- Rim light -->
+    <linearGradient id="rimLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f1f5f9" stop-opacity="0.8" />
+      <stop offset="50%" stop-color="#fbbf24" stop-opacity="0.4" />
+      <stop offset="100%" stop-color="#f1f5f9" stop-opacity="0.8" />
+    </linearGradient>
+    
+    <!-- Noise pattern for texture -->
+    <pattern id="noise" width="100" height="100" patternUnits="userSpaceOnUse">
+      <rect width="100" height="100" fill="#8b5cf6" />
+      <rect width="100" height="100" fill="url(#noiseFilter)" />
+    </pattern>
+    
+    <filter id="noiseFilter">
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="4" stitchTiles="stitch" />
+      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.16 0" />
+    </filter>
+  </defs>
+</svg>

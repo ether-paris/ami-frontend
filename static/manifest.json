@@ -1,0 +1,17 @@
+{
+  "name": "Ami French Tutor",
+  "short_name": "Ami",
+  "description": "Your voice-first French tutor that replies naturally and keeps grammar lessons separate.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#efeae2",
+  "theme_color": "#8b5cf6",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
