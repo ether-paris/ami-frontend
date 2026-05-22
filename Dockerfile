@@ -5,9 +5,11 @@ WORKDIR /app
     # Install dependencies using bun (following Ether pattern)
     COPY package.json bun.lock ./
     COPY scripts/ scripts/
+    COPY src/lib/server/db/schema.ts src/lib/server/db/schema.ts
+    COPY drizzle/ drizzle/
     RUN bun install
 
-    # Copy source code
+    # Copy remaining source code
     COPY . .
 
 # Build the application
