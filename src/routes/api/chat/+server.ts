@@ -120,24 +120,91 @@ const normalizeMessages = (messages: unknown): ChatMessage[] => {
     }));
 };
 
-const transcribeAudio = async (audioBase64: string) => {
-  // Try Groq first (Whisper Large V3 Turbo)
+const transcribeAudio = async (audioBase64: string, preferredService?: string) => {
+  // Special handling for Bassem SABBAGH - allow service selection
+  const isBassem = locals?.user?.name === "Bassem SABBAGH" || locals?.user?.email === "bassem@revenuemonster.my";
+  const forceService = isBassem && preferredService ? preferredService : null;
+
+  // Try the forced service first if specified (for Bassem)
+  if (forceService) {
+    if (forceService === "groq" || forceService === "whisper") {
+      try {
+        const groqApiKey = process.env.GROQ_API_KEY;
+        if (groqApiKey) {
+          const audioBytes = Buffer.from(audioBase64, "base64");
+          const form = new FormData();
+          form.append(
+            "file",
+            new Blob([audioBytes], { type: "audio/webm" }),
+            "audio.webm",
+          );
+          form.append("model", "whisper-large-v3-turbo");
+          form.append("language", "fr");
+          form.append("response_format", "json");
+          form.append("temperature", "0.0");
+          form.append("suppress_tokens", "-1");
+
+          const res = await fetch(
+            "https://api.groq.com/openai/v1/audio/transcriptions",
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${groqApiKey}`,
+              },
+              body: form,
+            },
+          );
+
+          if (res.ok) {
+            const data = (await res.json()) as GroqTranscription;
+            console.log(`[Bassem] Using forced Groq/Whisper transcription`);
+            return data.text?.trim() || "";
+          }
+        }
+      } catch (e) {
+        console.warn("Forced Groq transcription failed:", e);
+      }
+    } else if (forceService === "mistral" || forceService === "voxtral") {
+      try {
+        const mistralApiKey = process.env.MISTRAL_API_KEY;
+        if (mistralApiKey) {
+          const client = new Mistral({ apiKey: mistralApiKey });
+          const audioBytes = Buffer.from(audioBase64, "base64");
+
+          const response = await client.audio.transcriptions.complete({
+            model: "voxtral-mini-latest",
+            file: new File([audioBytes], "audio/webm", { type: "audio/webm" }),
+            language: "fr",
+            temperature: 0.0,
+            timestampGranularities: ["word"],
+          });
+
+          console.log(`[Bassem] Using forced Mistral/Voxtral transcription`);
+          return response.text?.trim() || "";
+        }
+      } catch (e) {
+        console.warn("Forced Mistral transcription failed:", e);
+      }
+    }
+  }
+
+  // Default behavior: Try Groq first, then Mistral
   try {
     const groqApiKey = process.env.GROQ_API_KEY;
 
     if (groqApiKey) {
-  const audioBytes = Buffer.from(audioBase64, "base64");
-  const form = new FormData();
-  form.append(
-    "file",
-    new Blob([audioBytes], { type: "audio/webm" }),
-    "audio.webm",
-  );
-  form.append("model", "whisper-large-v3-turbo");
-  form.append("language", "fr");
-  form.append("response_format", "json");
-  form.append("temperature", "0.0"); // Set to 0 for most literal transcription
-  form.append("suppress_tokens", "-1"); // Disable all token suppression
+      const audioBytes = Buffer.from(audioBase64, "base64");
+      const form = new FormData();
+      form.append(
+        "file",
+        new Blob([audioBytes], { type: "audio/webm" }),
+        "audio.webm",
+      );
+      form.append("model", "whisper-large-v3-turbo");
+      form.append("language", "fr");
+      form.append("response_format", "json");
+      form.append("temperature", "0.0");
+      form.append("suppress_tokens", "-1");
 
       const res = await fetch(
         "https://api.groq.com/openai/v1/audio/transcriptions",
@@ -154,6 +221,35 @@ const transcribeAudio = async (audioBase64: string) => {
         const data = (await res.json()) as GroqTranscription;
         return data.text?.trim() || "";
       }
+    }
+  } catch (e) {
+    console.warn("Groq transcription failed, falling back to Mistral:", e);
+  }
+
+  // Fallback to Mistral
+  try {
+    const mistralApiKey = process.env.MISTRAL_API_KEY;
+
+    if (!mistralApiKey) {
+      throw error(500, "Both GROQ_API_KEY and MISTRAL_API_KEY are not configured");
+    }
+
+    const client = new Mistral({ apiKey: mistralApiKey });
+    const audioBytes = Buffer.from(audioBase64, "base64");
+
+    const response = await client.audio.transcriptions.complete({
+      model: "voxtral-mini-latest",
+      file: new File([audioBytes], "audio/webm", { type: "audio/webm" }),
+      language: "fr",
+      temperature: 0.0,
+      timestampGranularities: ["word"],
+    });
+
+    return response.text?.trim() || "";
+  } catch (e) {
+    console.error("Mistral transcription failed:", e);
+    throw error(502, "All transcription services failed");
+  }
     }
   } catch (e) {
     console.warn("Groq transcription failed, falling back to Mistral:", e);
@@ -240,8 +336,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   const requestedVoiceId =
     typeof body?.voice_id === "string" ? body.voice_id : undefined;
 
-  if (audioBase64) {
-    transcript = await transcribeAudio(audioBase64);
+   // Extract transcription service preference if provided
+   const preferredTranscriptionService = typeof body?.transcription_service === "string" 
+     ? body.transcription_service.toLowerCase() 
+     : undefined;
+
+   if (audioBase64) {
+    transcript = await transcribeAudio(audioBase64, preferredTranscriptionService);
 
     if (transcript) {
       messages.push({ role: "user", content: transcript });
