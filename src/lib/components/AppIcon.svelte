@@ -37,6 +37,7 @@
   on:keydown={(e) => e.key === 'Enter' && handleClick()}
   aria-label="App icon"
   tabindex="0"
+  style="-webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */"
 >
 
   

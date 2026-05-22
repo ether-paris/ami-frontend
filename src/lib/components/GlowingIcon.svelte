@@ -42,14 +42,14 @@
       {/if}
     </div>
     
-    <!-- Ultra High-Fidelity Matte Grain Noise Filter -->
+    <!-- Ultra High-Fidelity Matte Grain Noise Filter - optimized for mobile -->
     <svg class="orb-noise-svg" aria-hidden="true">
       <filter id={filterId}>
         <!-- Higher frequency for fine grain texture rather than large pixelated dots -->
-        <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="4" stitchTiles="stitch" />
-        <feColorMatrix type="matrix" values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.16 0" />
-        <feComposite operator="in" in2="SourceGraphic" />
-        <feBlend mode="overlay" in2="SourceGraphic" />
+        <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="4" stitchTiles="stitch" result="noise" />
+        <feColorMatrix type="matrix" values="0 0 0 0 0   0 0 0 0 0   0 0 0 0 0  0 0 0 0.16 0" result="coloredNoise" />
+        <feComposite operator="in" in2="SourceGraphic" result="composited" />
+        <feBlend mode="overlay" in2="SourceGraphic" result="finalNoise" />
       </filter>
       <rect width="100%" height="100%" filter="url(#{filterId})" />
     </svg>
@@ -71,6 +71,7 @@
     user-select: none;
     will-change: transform;
     transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    overflow: visible !important; /* Ensure glow is visible outside container */
   }
 
   /* The 3D Matte Sphere */
@@ -89,13 +90,14 @@
     transform: translateZ(0); /* Force hardware acceleration */
   }
 
-  /* Layered Gradients inside the Orb to create smooth fluid blends */
+   /* Layered Gradients inside the Orb to create smooth fluid blends */
   .orb-gradients {
     position: absolute;
     inset: -15%;
     border-radius: 50%;
     filter: blur(12px); /* Slightly reduced blur for a more solid, less transparent look */
     will-change: transform;
+    overflow: hidden; /* Prevent gradient overflow from causing square artifacts */
   }
 
   /* Position each layer absolutely so they stack correctly */
@@ -201,7 +203,7 @@
     background: radial-gradient(circle, rgba(234, 179, 8, 0.4) 0%, rgba(167, 139, 250, 0.3) 55%, rgba(0, 0, 0, 0) 75%);
   }
 
-  /* SVG Noise Overlay for paper/grain texture */
+   /* SVG Noise Overlay for paper/grain texture - reduced opacity for mobile compatibility */
   .orb-noise-svg {
     position: absolute;
     inset: 0;
@@ -211,6 +213,53 @@
     pointer-events: none;
     mix-blend-mode: overlay;
     opacity: 0.65; /* Slightly softer noise for a super smooth, premium matte paper look */
+  }
+
+   /* Outer ambient glow - ensure proper clipping on mobile */
+  .orb-glow {
+    position: absolute;
+    inset: -12px;
+    border-radius: 50%;
+    filter: blur(12px);
+    opacity: 0;
+    transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: opacity;
+    z-index: -1; /* Place behind the orb to prevent clipping issues */
+  }
+
+  /* Theme-specific glows */
+  [data-scheme="matte-lavender"] .orb-glow {
+    background: radial-gradient(circle, rgba(129, 140, 248, 0.35) 0%, rgba(253, 186, 116, 0.1) 55%, rgba(0, 0, 0, 0) 75%);
+  }
+
+  [data-scheme="aurora-teal"] .orb-glow {
+    background: radial-gradient(circle, rgba(56, 189, 248, 0.35) 0%, rgba(163, 230, 53, 0.1) 55%, rgba(0, 0, 0, 0) 75%);
+  }
+
+  [data-scheme="sunset-glow"] .orb-glow {
+    background: radial-gradient(circle, rgba(236, 72, 153, 0.35) 0%, rgba(249, 115, 22, 0.1) 55%, rgba(0, 0, 0, 0) 75%);
+  }
+
+  /* Mobile-specific fixes */
+  @media (hover: none) and (pointer: coarse) {
+    .orb-glow {
+      filter: blur(8px); /* Reduce blur on mobile for better performance */
+    }
+    
+    .orb-noise-svg {
+      opacity: 0.5; /* Reduce noise intensity on mobile */
+    }
+    
+    /* Specific fix for iOS Safari square frame issue */
+    @supports (-webkit-touch-callout: none) {
+      .orb-container {
+        -webkit-mask-image: -webkit-radial-gradient(white, black); /* Force proper clipping on iOS */
+      }
+      
+      .orb-sphere {
+        -webkit-backface-visibility: hidden; /* Prevent rendering artifacts */
+      }
+    }
   }
 
   /* Outer ambient glow matched to theme */

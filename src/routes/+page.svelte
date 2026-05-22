@@ -440,21 +440,26 @@ import GlowingIcon from '$lib/components/GlowingIcon.svelte';
             } else if (data.type === 'error') {
               isThinking = false;
               pushAssistantError(data.message);
-            } else if (data.type === 'done') {
-              isThinking = false;
-              if (accumulatedAudioBytes.length > 0) {
-                const totalLength = accumulatedAudioBytes.reduce((acc, val) => acc + val.length, 0);
-                const fullBytes = new Uint8Array(totalLength);
-                let offset = 0;
-                for (const bytes of accumulatedAudioBytes) {
-                  fullBytes.set(bytes, offset);
-                  offset += bytes.length;
-                }
-                const blob = new Blob([fullBytes], { type: 'audio/mpeg' });
-                const fullUrl = URL.createObjectURL(blob);
-                updateMessageAudio(assistantMessage.id, { audioUrl: fullUrl, audioStatus: 'ready' });
-              }
-            }
+             } else if (data.type === 'done') {
+               isThinking = false;
+               if (accumulatedAudioBytes.length > 0) {
+                 const totalLength = accumulatedAudioBytes.reduce((acc, val) => acc + val.length, 0);
+                 const fullBytes = new Uint8Array(totalLength);
+                 let offset = 0;
+                 for (const bytes of accumulatedAudioBytes) {
+                   fullBytes.set(bytes, offset);
+                   offset += bytes.length;
+                 }
+                 const blob = new Blob([fullBytes], { type: 'audio/mpeg' });
+                 const fullUrl = URL.createObjectURL(blob);
+                 updateMessageAudio(assistantMessage.id, { audioUrl: fullUrl, audioStatus: 'ready' });
+                 
+                 // Auto-play the complete audio if TTS is enabled
+                 if (ttsEnabled) {
+                   void speakMessage(assistantMessage.id, accumulatedText, true);
+                 }
+               }
+             }
           } catch (e) {
             // Ignore malformed JSON from partial stream chunks
           }

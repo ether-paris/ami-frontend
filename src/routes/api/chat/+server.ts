@@ -80,16 +80,17 @@ For each user message:
 - ABSOLUTELY NO EMOJIS anywhere.
 - Keep your conversational response natural and appropriate to the context - it can be brief for simple exchanges or longer for more complex discussions.
 - Preserve user hesitations like 'euh' and address them pedagogically in the lesson block.
+- The teaching section MUST be in French, not English.
 
 Teaching section format (if needed):
-"Petite lecon :
+"Petite leçon :
 - [correction 1]
 - [correction 2]"
 
 Output format:
 {
-  "transcription": "The literal transcript of the user's spoken audio (or text message if they typed). Do NOT correct any grammatical errors in this field - transcribe it exactly as they spoke it, including any hesitations like 'euh'.",
-  "petit_lecon": "A concise English grammatical critique analyzing syntax errors, incorrect genders, and speech hesitations like 'euh'.",
+  "transcription": "The literal transcript of the user's spoken audio (or text message if they typed). Do NOT correct any grammatical errors in this field - transcribe it exactly as they spoke it, including any hesitations like 'euh', repetitions, and false starts. Preserve all natural speech characteristics.",
+  "petit_lecon": "A concise French grammatical analysis of syntax errors, incorrect genders, speech patterns, and accent characteristics. Include corrections even if the user specifically asks for a lesson to improve their French, not just when there are errors. Feel free to provide feedback on pronunciation and accent when relevant to help the user sound more natural.",
   "conversation": "A natural, intermediate-level continuation of the French conversation roleplay. The response should be appropriate to the context - it can be a few sentences for simple exchanges or several sentences for more complex discussions. Always end with an open-ended question to encourage further conversation."
 }`;
 
@@ -132,9 +133,17 @@ const transcribeAudio = async (audioBase64: string) => {
     model: "voxtral-mini-latest",
     file: new File([audioBytes], "audio.webm", { type: "audio/webm" }),
     language: "fr",
+    // Add parameters to preserve natural speech characteristics
+    temperature: 0.7, // Slightly higher for more natural transcription
+    // Note: The API may still clean up some hesitations, but the system prompt
+    // will instruct the AI to preserve them in the final transcription field
   });
 
-  return response.text?.trim() || "";
+  let transcription = response.text?.trim() || "";
+  
+  // If the transcription seems too clean, add a note to preserve natural speech
+  // This will be handled by the system prompt instructions
+  return transcription;
 };
 
 const splitLesson = (data: MistralResponse) => {
