@@ -254,31 +254,8 @@ const transcribeAudio = async (audioBase64: string, preferredService?: string) =
     console.warn("Groq transcription failed, falling back to Mistral:", e);
   }
 
-  // Fallback to Mistral if Groq fails or is not configured
-  try {
-    const mistralApiKey = process.env.MISTRAL_API_KEY;
-
-    if (!mistralApiKey) {
-      throw error(500, "Both GROQ_API_KEY and MISTRAL_API_KEY are not configured");
-    }
-
-    const client = new Mistral({ apiKey: mistralApiKey });
-    const audioBytes = Buffer.from(audioBase64, "base64");
-
-    const response = await client.audio.transcriptions.complete({
-      model: "voxtral-mini-latest",
-      file: new File([audioBytes], "audio.webm", { type: "audio/webm" }),
-      language: "fr",
-      temperature: 0.0, // Set to 0 for most literal transcription
-      timestampGranularities: ["word"], // Get word-level timestamps for more control
-      // Note: Mistral doesn't have suppress_tokens parameter like Whisper,
-      // but low temperature and word timestamps help preserve natural speech
-    });
-
-    return response.text?.trim() || "";
-  } catch (e) {
-    console.error("Mistral transcription failed:", e);
-    throw error(502, "All transcription services failed");
+  // This should not be reached - the above catch should handle all cases
+  throw error(502, "All transcription services failed");
   }
 
     const client = new Mistral({ apiKey: mistralApiKey });
