@@ -78,6 +78,7 @@ For each user message (which will already be transcribed text):
 
  CRITICAL RULES:
 - Do NOT correct colloquialisms or common idioms (like "Qu'est-ce qu'il y a de beau ?", "Ca roule", etc.). They are perfectly valid French.
+- DO NOT drop, smooth out, or filter out natural hesitations (like 'euh', 'ah', 'bah'), false starts, or repeated words. They must be explicitly preserved and analyzed in your feedback.
 - If the user's French is natural and correct, DO NOT include a teaching section.
 - ABSOLUTELY NO EMOJIS anywhere.
 - Keep your conversational response natural and appropriate to the context - it can be brief for simple exchanges or longer for more complex discussions.
@@ -91,8 +92,8 @@ Teaching section format (if needed):
 
 Output format:
 {
-  "petit_lecon": "A concise French grammatical analysis of syntax errors, incorrect genders, speech patterns, and accent characteristics. Include corrections even if the user specifically asks for a lesson to improve their French, not just when there are errors. Feel free to provide feedback on pronunciation and accent when relevant to help the user sound more natural.",
-  "conversation": "A natural, intermediate-level continuation of the French conversation roleplay. The response should be appropriate to the context - it can be a few sentences for simple exchanges or several sentences for more complex discussions. Always end with an open-ended question to encourage further conversation."
+  "petit_lecon": "A concise French grammatical analysis of syntax errors, incorrect genders, speech patterns, hesitations, repeated words, and accent characteristics. Include corrections and pacing observations even if the user specifically asks for a lesson to improve their French, not just when there are major errors. Feel free to provide feedback on pronunciation and conversational flow when relevant.",
+  "conversation": "A natural, intermediate-level continuation of the French conversation roleplay. Always end with an open-ended question to encourage further conversation."
 }`;
 
 const normalizeMessages = (messages: unknown): ChatMessage[] => {
@@ -120,9 +121,44 @@ const normalizeMessages = (messages: unknown): ChatMessage[] => {
     }));
 };
 
-const transcribeAudio = async (audioBase64: string, preferredService?: string) => {
+const AUDIO_EXTENSION_BY_MIME: Record<string, string> = {
+  "audio/webm": "webm",
+  "audio/ogg": "ogg",
+  "audio/wav": "wav",
+  "audio/mpeg": "mp3",
+  "audio/mp4": "mp4",
+  "audio/mp3": "mp3",
+  "audio/x-m4a": "m4a",
+  "audio/aac": "aac",
+};
+
+const getAudioFileDetails = (mimeType?: string) => {
+  const cleanMimeType =
+    typeof mimeType === "string"
+      ? mimeType.split(";")[0].trim().toLowerCase()
+      : "";
+  const type =
+    cleanMimeType && AUDIO_EXTENSION_BY_MIME[cleanMimeType]
+      ? cleanMimeType
+      : "audio/webm";
+  const ext = AUDIO_EXTENSION_BY_MIME[type] || "webm";
+  return {
+    type,
+    filename: `audio.${ext}`,
+  };
+};
+
+const transcribeAudio = async (
+  audioBase64: string,
+  mimeType?: string,
+  preferredService?: string,
+  locals?: App.Locals,
+) => {
+  const { type, filename } = getAudioFileDetails(mimeType);
+
   // Special handling for Bassem SABBAGH - allow service selection (email only)
-  const isBassem = locals?.user?.email === "bassem.bme@gmail.com";
+  const isBassem =
+    locals && locals.user && locals.user.email === "bassem.bme@gmail.com";
   const forceService = isBassem && preferredService ? preferredService : null;
 
   // Try the forced service first if specified (for Bassem)
@@ -133,16 +169,15 @@ const transcribeAudio = async (audioBase64: string, preferredService?: string) =
         if (groqApiKey) {
           const audioBytes = Buffer.from(audioBase64, "base64");
           const form = new FormData();
-          form.append(
-            "file",
-            new Blob([audioBytes], { type: "audio/webm" }),
-            "audio.webm",
-          );
-          form.append("model", "whisper-large-v3-turbo");
+          form.append("file", new Blob([audioBytes], { type }), filename);
+          form.append("model", "whisper-large-v3");
           form.append("language", "fr");
           form.append("response_format", "json");
-          form.append("temperature", "0.0");
-          form.append("suppress_tokens", "-1");
+          form.append("temperature", "0.4");
+          form.append(
+            "prompt",
+            "Euh, ben, alors... je, je me disais que... tu vois, ah, c'est comme ça.",
+          );
 
           const res = await fetch(
             "https://api.groq.com/openai/v1/audio/transcriptions",
@@ -173,9 +208,9 @@ const transcribeAudio = async (audioBase64: string, preferredService?: string) =
 
           const response = await client.audio.transcriptions.complete({
             model: "voxtral-mini-latest",
-            file: new File([audioBytes], "audio/webm", { type: "audio/webm" }),
+            file: new File([audioBytes], filename, { type }),
             language: "fr",
-            temperature: 0.0,
+            temperature: 0.4,
             timestampGranularities: ["word"],
           });
 
@@ -195,16 +230,15 @@ const transcribeAudio = async (audioBase64: string, preferredService?: string) =
     if (groqApiKey) {
       const audioBytes = Buffer.from(audioBase64, "base64");
       const form = new FormData();
-      form.append(
-        "file",
-        new Blob([audioBytes], { type: "audio/webm" }),
-        "audio.webm",
-      );
-      form.append("model", "whisper-large-v3-turbo");
+      form.append("file", new Blob([audioBytes], { type }), filename);
+      form.append("model", "whisper-large-v3");
       form.append("language", "fr");
       form.append("response_format", "json");
-      form.append("temperature", "0.0");
-      form.append("suppress_tokens", "-1");
+      form.append("temperature", "0.4");
+      form.append(
+        "prompt",
+        "Euh, ben, alors... je, je me disais que... tu vois, ah, c'est comme ça.",
+      );
 
       const res = await fetch(
         "https://api.groq.com/openai/v1/audio/transcriptions",
@@ -231,7 +265,10 @@ const transcribeAudio = async (audioBase64: string, preferredService?: string) =
     const mistralApiKey = process.env.MISTRAL_API_KEY;
 
     if (!mistralApiKey) {
-      throw error(500, "Both GROQ_API_KEY and MISTRAL_API_KEY are not configured");
+      throw error(
+        500,
+        "Both GROQ_API_KEY and MISTRAL_API_KEY are not configured",
+      );
     }
 
     const client = new Mistral({ apiKey: mistralApiKey });
@@ -239,32 +276,10 @@ const transcribeAudio = async (audioBase64: string, preferredService?: string) =
 
     const response = await client.audio.transcriptions.complete({
       model: "voxtral-mini-latest",
-      file: new File([audioBytes], "audio/webm", { type: "audio/webm" }),
+      file: new File([audioBytes], filename, { type }),
       language: "fr",
-      temperature: 0.0,
+      temperature: 0.4,
       timestampGranularities: ["word"],
-    });
-
-    return response.text?.trim() || "";
-  } catch (e) {
-    console.error("Mistral transcription failed:", e);
-    throw error(502, "All transcription services failed");
-  }
-  } catch (e) {
-    console.warn("Groq transcription failed, falling back to Mistral:", e);
-  }
-
-  // This should not be reached - the above catch should handle all cases
-  throw error(502, "All transcription services failed");
-  }
-
-    const client = new Mistral({ apiKey: mistralApiKey });
-    const audioBytes = Buffer.from(audioBase64, "base64");
-
-    const response = await client.audio.transcriptions.complete({
-      model: "voxtral-mini-latest",
-      file: new File([audioBytes], "audio/webm", { type: "audio/webm" }),
-      language: "fr"
     });
 
     return response.text?.trim() || "";
@@ -309,16 +324,24 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   let transcript: string | null = null;
   const audioBase64 = typeof body?.audio === "string" ? body.audio : null;
+  const audioMimeType =
+    typeof body?.audioMimeType === "string" ? body.audioMimeType : undefined;
   const requestedVoiceId =
     typeof body?.voice_id === "string" ? body.voice_id : undefined;
 
-   // Extract transcription service preference if provided
-   const preferredTranscriptionService = typeof body?.transcription_service === "string" 
-     ? body.transcription_service.toLowerCase() 
-     : undefined;
+  // Extract transcription service preference if provided
+  const preferredTranscriptionService =
+    typeof body?.transcription_service === "string"
+      ? body.transcription_service.toLowerCase()
+      : undefined;
 
-   if (audioBase64) {
-    transcript = await transcribeAudio(audioBase64, preferredTranscriptionService);
+  if (audioBase64) {
+    transcript = await transcribeAudio(
+      audioBase64,
+      audioMimeType,
+      preferredTranscriptionService,
+      locals,
+    );
 
     if (transcript) {
       messages.push({ role: "user", content: transcript });

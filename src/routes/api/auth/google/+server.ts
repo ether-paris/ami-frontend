@@ -37,11 +37,12 @@ export const POST: RequestHandler = async ({ request }) => {
         { expiresIn: "7d" },
       );
 
-      return json({
+       return json({
         token: mockToken,
         user: {
           name: "Development User",
           picture: "https://www.gravatar.com/avatar/default?s=200&d=mp",
+          email: "dev@example.com",
         },
       });
     }
@@ -105,6 +106,7 @@ export const POST: RequestHandler = async ({ request }) => {
         picture:
           googleUser.picture ||
           "https://www.gravatar.com/avatar/default?s=200&d=mp",
+        email: user.email,
       },
     });
   } catch (error) {

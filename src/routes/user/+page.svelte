@@ -5,6 +5,7 @@
   let userInfo = {
     name: '',
     picture: '',
+    email: '',
     stats: {
       totalConversations: 0,
       totalMessages: 0,
@@ -14,9 +15,11 @@
     }
   };
 
+  // State variables
   let selectedVoiceId = '';
   let voicesList: any[] = [];
   let isFetchingVoices = false;
+  let preferredTranscriptionService: 'groq' | 'mistral' | 'auto' = 'auto';
 
   async function fetchVoices() {
     isFetchingVoices = true;
@@ -52,6 +55,17 @@
     }
   }
   
+  function saveTranscriptionService() {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('preferred_transcription_service', preferredTranscriptionService);
+      // Trigger storage event to notify other tabs/components
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'preferred_transcription_service',
+        newValue: preferredTranscriptionService
+      }));
+    }
+  }
+  
   onMount(() => {
     // Check if user is logged in
     if (typeof window !== 'undefined') {
@@ -64,13 +78,14 @@
         return;
       }
       
-      if (storedUserInfo) {
+       if (storedUserInfo) {
         try {
           const parsedInfo = JSON.parse(storedUserInfo);
           userInfo = {
             ...userInfo,
             name: parsedInfo.name || userInfo.name,
-            picture: parsedInfo.picture || userInfo.picture
+            picture: parsedInfo.picture || userInfo.picture,
+            email: parsedInfo.email || userInfo.email
           };
         } catch (e) {
           console.error('Error parsing user info:', e);
@@ -78,6 +93,10 @@
       }
 
       selectedVoiceId = localStorage.getItem('selected_voice_id') || '';
+      const storedTranscriptionService = localStorage.getItem('preferred_transcription_service');
+      if (storedTranscriptionService && ['groq', 'mistral', 'auto'].includes(storedTranscriptionService)) {
+        preferredTranscriptionService = storedTranscriptionService as 'groq' | 'mistral' | 'auto';
+      }
       void fetchVoices();
       
       // In a real app, you would fetch actual stats from your backend
@@ -140,7 +159,7 @@
     <div class="bg-white rounded-2xl shadow-sm p-8 mb-8">
       <h2 class="text-xl font-semibold text-slate-800 mb-2">Tutor Voice Settings</h2>
       <p class="text-sm text-slate-500 mb-6 font-normal">Choose the voice you would like Ami to use during your lessons. The default multilingual voice offers native French pronunciation.</p>
-      
+       
       <div class="max-w-md">
         <label for="voice-select" class="block text-sm font-medium text-slate-700 mb-2">Ami's Voice</label>
         {#if isFetchingVoices}
@@ -169,6 +188,28 @@
         {/if}
       </div>
     </div>
+
+    <!-- Transcription Service Settings (Bassem only) -->
+    {#if userInfo.email === 'bassem.bme@gmail.com'}
+    <div class="bg-white rounded-2xl shadow-sm p-8 mb-8">
+      <h2 class="text-xl font-semibold text-slate-800 mb-2">Transcription Service</h2>
+      <p class="text-sm text-slate-500 mb-6 font-normal">Choose which transcription service to use for voice messages.</p>
+      
+      <div class="max-w-md">
+        <label for="transcription-select" class="block text-sm font-medium text-slate-700 mb-2">Transcription Service</label>
+        <select
+          id="transcription-select"
+          bind:value={preferredTranscriptionService}
+          on:change={saveTranscriptionService}
+          class="w-full bg-white border border-slate-200 text-slate-700 rounded-xl text-[14px] px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-medium shadow-sm transition-colors cursor-pointer"
+        >
+          <option value="auto">Auto (Groq → Mistral)</option>
+          <option value="groq">Groq (Whisper)</option>
+          <option value="mistral">Mistral (Voxtral)</option>
+        </select>
+      </div>
+    </div>
+    {/if}
 
     <!-- Stats Section -->
     <div class="bg-white rounded-2xl shadow-sm p-8 mb-8">
