@@ -173,11 +173,12 @@ const transcribeAudio = async (
           form.append("model", "whisper-large-v3");
           form.append("language", "fr");
           form.append("response_format", "json");
-          form.append("temperature", "0.4");
+          form.append("temperature", "0.0");
           form.append(
             "prompt",
-            "Euh, ben, alors... je, je me disais que... tu vois, ah, c'est comme ça.",
+            "Euh, ben, alors... je, je me di- disais que... euh, c'est-à-dire, tu vois, ah, c'est... c'est ça.",
           );
+          form.append("compression_ratio_threshold", "2.4");
 
           const res = await fetch(
             "https://api.groq.com/openai/v1/audio/transcriptions",
@@ -234,11 +235,12 @@ const transcribeAudio = async (
       form.append("model", "whisper-large-v3");
       form.append("language", "fr");
       form.append("response_format", "json");
-      form.append("temperature", "0.4");
+      form.append("temperature", "0.0");
       form.append(
         "prompt",
-        "Euh, ben, alors... je, je me disais que... tu vois, ah, c'est comme ça.",
+        "Euh, ben, alors... je, je me di- disais que... euh, c'est-à-dire, tu vois, ah, c'est... c'est ça.",
       );
+      form.append("compression_ratio_threshold", "2.4");
 
       const res = await fetch(
         "https://api.groq.com/openai/v1/audio/transcriptions",

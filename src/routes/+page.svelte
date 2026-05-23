@@ -179,10 +179,16 @@
     if (!speechAudio) {
       speechAudio = new Audio();
     }
-    if (!speechAudio.src || speechAudio.src === "" || speechAudio.src.startsWith("data:")) {
-      speechAudio.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAAA";
+    if (
+      !speechAudio.src ||
+      speechAudio.src === "" ||
+      speechAudio.src.startsWith("data:")
+    ) {
+      speechAudio.src =
+        "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAAA";
     }
-    speechAudio.play()
+    speechAudio
+      .play()
       .then(() => {
         speechAudio.pause();
       })
@@ -661,18 +667,16 @@
 
       const source = audioCtx.createMediaStreamSource(rawStream);
 
-      // KEEP the compressor, but use gentle settings instead of a heavy squash
+      // Look for these lines inside your startRecording() inside +page.svelte:
       const compressor = audioCtx.createDynamicsCompressor();
-      compressor.threshold.setValueAtTime(-12, audioCtx.currentTime); // Only touches the absolute loudest peaks
-      compressor.knee.setValueAtTime(10, audioCtx.currentTime); // Smooth transition
-      compressor.ratio.setValueAtTime(3, audioCtx.currentTime); // Gentle compression ratio (down from 12)
-      compressor.attack.setValueAtTime(0.01, audioCtx.currentTime);
-      compressor.release.setValueAtTime(0.15, audioCtx.currentTime);
+      compressor.threshold.setValueAtTime(-18, audioCtx.currentTime); // Raise threshold slightly so it ignores quiet room hiss
+      compressor.knee.setValueAtTime(15, audioCtx.currentTime);
+      compressor.ratio.setValueAtTime(4, audioCtx.currentTime); // Drop ratio from 12 to 4 to protect your natural vocal spacing
+      compressor.attack.setValueAtTime(0.005, audioCtx.currentTime);
+      compressor.release.setValueAtTime(0.2, audioCtx.currentTime); // Release faster so the mic recovers instantly after a stutter
 
-      // KEEP the gain node to lift quiet hesitations out of the hardware noise floor
       const gainNode = audioCtx.createGain();
-      gainNode.gain.setValueAtTime(2.2, audioCtx.currentTime); // Keep a solid, clear boost
-
+      gainNode.gain.setValueAtTime(2.0, audioCtx.currentTime); // Keep a solid, clear volume boost
       // Chain the audio nodes
       source.connect(compressor);
       compressor.connect(gainNode);
