@@ -44,6 +44,7 @@
   let activeVoiceName = "Chatterbox TTS";
   let ttsError: string | null = null;
   let currentSpeechAudio: HTMLAudioElement | null = null;
+  let speechAudio: HTMLAudioElement | null = null;
   let currentSpeechUrl: string | null = null;
   let isAppSpeaking = false;
   let appIcon: any = null;
@@ -153,7 +154,10 @@
   };
 
   const stopSpeech = () => {
-    currentSpeechAudio?.pause();
+    if (speechAudio) {
+      speechAudio.pause();
+      speechAudio.src = "";
+    }
     currentSpeechAudio = null;
     currentSpeechUrl = null;
     audioQueue.forEach(URL.revokeObjectURL);
@@ -170,6 +174,23 @@
     }
   };
 
+  const unlockAudio = () => {
+    if (typeof window === "undefined") return;
+    if (!speechAudio) {
+      speechAudio = new Audio();
+    }
+    if (!speechAudio.src || speechAudio.src === "" || speechAudio.src.startsWith("data:")) {
+      speechAudio.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAAA";
+    }
+    speechAudio.play()
+      .then(() => {
+        speechAudio.pause();
+      })
+      .catch((err) => {
+        console.warn("Audio unlock failed:", err);
+      });
+  };
+
   let audioQueue: string[] = [];
   let isPlayingAudioQueue = false;
 
@@ -181,12 +202,18 @@
     isPlayingAudioQueue = true;
     const url = audioQueue.shift()!;
 
-    currentSpeechAudio?.pause();
-    currentSpeechAudio = null;
+    if (speechAudio) {
+      speechAudio.pause();
+      speechAudio.src = "";
+    }
     currentSpeechUrl = null;
 
     currentSpeechUrl = url;
-    currentSpeechAudio = new Audio(url);
+    if (!speechAudio) {
+      speechAudio = new Audio();
+    }
+    currentSpeechAudio = speechAudio;
+    currentSpeechAudio.src = url;
 
     currentSpeechAudio.onplay = () => {
       isAppSpeaking = true;
@@ -216,6 +243,12 @@
       isPlayingAudioQueue = false;
       audioQueue.forEach(URL.revokeObjectURL);
       audioQueue = [];
+
+      // Show subtle indication that user needs to tap to play
+      ttsError = "Tap to hear response";
+      setTimeout(() => {
+        ttsError = null;
+      }, 3000);
     }
   };
 
@@ -273,7 +306,11 @@
   const playSpeechUrl = async (url: string) => {
     stopSpeech();
     currentSpeechUrl = url;
-    currentSpeechAudio = new Audio(url);
+    if (!speechAudio) {
+      speechAudio = new Audio();
+    }
+    currentSpeechAudio = speechAudio;
+    currentSpeechAudio.src = url;
 
     currentSpeechAudio.onplay = () => {
       isAppSpeaking = true;
@@ -531,16 +568,6 @@
                   audioUrl: fullUrl,
                   audioStatus: "ready",
                 });
-
-                // Auto-play the complete audio if TTS is enabled and there was recent user interaction
-                if (
-                  ttsEnabled &&
-                  hasRecentUserInteraction &&
-                  Date.now() - lastUserInteractionTime < 30000
-                ) {
-                  // Only attempt autoplay within 30 seconds of user interaction to comply with browser policies
-                  void speakMessage(assistantMessage.id, accumulatedText, true);
-                }
               }
             }
           } catch (e) {
@@ -600,6 +627,7 @@
   const sendText = async () => {
     if (!inputText.trim()) return;
 
+    unlockAudio();
     const text = inputText.trim();
     const nextMessages = [...messages, createMessage("user", text)];
     messages = nextMessages;
@@ -614,6 +642,7 @@
 
   const startRecording = async () => {
     try {
+      unlockAudio();
       hasRecentUserInteraction = true;
       lastUserInteractionTime = Date.now();
 
@@ -742,6 +771,7 @@
   };
 
   const handleRecordClick = () => {
+    unlockAudio();
     if (isRecording) {
       stopRecording();
     } else {
@@ -758,6 +788,8 @@
   });
 
   onMount(() => {
+    speechAudio = new Audio();
+
     // Check initial auth state
     checkAuthState();
 
@@ -897,7 +929,11 @@
           : 'text-slate-400 bg-slate-200/50'}"
         on:click={() => {
           ttsEnabled = !ttsEnabled;
-          if (!ttsEnabled) stopSpeech();
+          if (!ttsEnabled) {
+            stopSpeech();
+          } else {
+            unlockAudio();
+          }
         }}
         title={ttsEnabled ? "Mute Voice" : "Enable Voice"}
       >
