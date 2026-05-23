@@ -179,18 +179,15 @@
     if (!speechAudio) {
       speechAudio = new Audio();
     }
-    if (
-      !speechAudio.src ||
-      speechAudio.src === "" ||
-      speechAudio.src.startsWith("data:")
-    ) {
-      speechAudio.src =
-        "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAAA";
-    }
+    const prevSrc = speechAudio.src;
+    speechAudio.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAAA";
     speechAudio
       .play()
       .then(() => {
         speechAudio.pause();
+        if (prevSrc && !prevSrc.startsWith("data:")) {
+          speechAudio.src = prevSrc;
+        }
       })
       .catch((err) => {
         console.warn("Audio unlock failed:", err);
@@ -772,13 +769,27 @@
       mediaRecorder.stop();
       isRecording = false;
     }
+    // Stop tracks synchronously to release microphone immediately
+    if (rawStream) {
+      rawStream.getTracks().forEach((track) => track.stop());
+      rawStream = null;
+    }
+    if (processedStream) {
+      processedStream.getTracks().forEach((track) => track.stop());
+      processedStream = null;
+    }
+    if (audioCtx && audioCtx.state !== "closed") {
+      void audioCtx.close();
+      audioCtx = null;
+    }
   };
 
   const handleRecordClick = () => {
-    unlockAudio();
     if (isRecording) {
       stopRecording();
+      unlockAudio();
     } else {
+      unlockAudio();
       startRecording();
     }
   };

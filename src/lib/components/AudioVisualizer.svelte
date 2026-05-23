@@ -37,6 +37,10 @@
       analyser.fftSize = 64;
       analyser.smoothingTimeConstant = 0.7; // Smoother transitions
       
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().catch(e => console.warn('Failed to resume audioContext on setup:', e));
+      }
+      
       const bufferLength = analyser.frequencyBinCount;
       dataArray = new Uint8Array(bufferLength);
       
@@ -60,6 +64,10 @@
       audioSource = audioContext.createMediaElementSource(audioElement);
       audioSource.connect(analyser);
       analyser.connect(audioContext.destination);
+      
+      if (audioContext.state === 'suspended') {
+        audioContext.resume().catch(e => console.warn('Failed to resume audioContext on connect:', e));
+      }
     } catch (error) {
       console.error('Error connecting audio source:', error);
     }
